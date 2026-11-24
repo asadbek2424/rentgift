@@ -127,6 +127,31 @@ async def parse_cmd(message: Message, command: CommandObject) -> None:
                            amount=notice.amount if notice.amount is not None else "—", card=notice.card_last4 or "—"))
 
 
+@router.message(Command("notices"))
+async def notices_cmd(message: Message) -> None:
+    """/notices — the last card notices the bot has seen and what it did with each."""
+    from sqlalchemy import select as _select
+
+    from ..db import PaymentNotice, Session as _Session
+    from .. import userbot
+    lang = await user_lang(message.from_user.id)
+    async with _Session() as session:
+        rows = list((await session.execute(_select(PaymentNotice).order_by(PaymentNotice.id.desc()).limit(15))).scalars())
+    head = t(lang, f"admin.userbot_state_{userbot.status.get('state', 'off')}", me=userbot.status.get("me", ""))
+    if not rows:
+        await message.answer(head + "\n\n" + t(lang, "admin.notices_empty"))
+        return
+    lines = []
+    for row in rows:
+        from datetime import timedelta as _td
+        when = (row.created_at + _td(hours=5)).strftime("%d.%m %H:%M") if row.created_at else ""
+        sign = "➕" if row.is_credit else "➖"
+        order = f" → #{row.order_id}" if row.order_id else ""
+        lines.append(f"{when} · {sign}{row.amount_uzs:,} · {t(lang, 'admin.nr_' + (row.result or 'pending'))}{order}"
+                     .replace(",", " "))
+    await message.answer(head + "\n\n" + "\n".join(lines))
+
+
 def _is_card_notice(message: Message) -> bool:
     origin = getattr(message, "forward_origin", None)
     user = getattr(origin, "sender_user", None)
@@ -163,8 +188,87 @@ async def show_order(message: Message, command: CommandObject) -> None:
 
 ACTIONS = {
     "confirm": svc.confirm_payment, "reject": svc.reject_payment, "cancel": svc.admin_cancel,
-    "refund": svc.mark_refunded, "retry": svc.retry, "latepay": svc.confirm_late,
+    "refund": svc.mark_refunded, "retry": svc.retry, "latepay": svc.confirm_late, "tobalance": svc.refund_to_balance,
 }
+
+
+async def _mark_done(call: CallbackQuery, text: str) -> None:
+    await call.answer(text)
+    if call.message:
+        try:
+            if call.message.caption is not None:
+                await call.message.edit_caption(caption=f"{call.message.caption}\n\n✔️ {text}", reply_markup=None)
+            else:
+                await call.message.edit_text(f"{call.message.text}\n\n✔️ {text}", reply_markup=None)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+@router.callback_query(F.data.startswith("t:"))
+async def topup_action(call: CallbackQuery) -> None:
+    from .. import wallet
+    lang = await user_lang(call.from_user.id)
+    try:
+        _, action, raw_id = call.data.split(":", 2)
+        topup_id = int(raw_id)
+        ctx = get_context()
+        if action == "confirm":
+            topup = await wallet.confirm_topup(ctx, topup_id, f"admin:{call.from_user.id}", late=True)
+        elif action == "reject":
+            topup = await wallet.reject_topup(ctx, topup_id, f"admin:{call.from_user.id}")
+        else:
+            await call.answer()
+            return
+    except ValueError:
+        await call.answer()
+        return
+    except wallet.WalletError as exc:
+        await call.answer(t(lang, "admin.state_changed", status=exc.detail or exc.code), show_alert=True)
+        return
+    await _mark_done(call, t(lang, "admin.topup_done", id=topup.id, status=t(lang, f"wallet.st_{topup.status}")))
+
+
+@router.callback_query(F.data.startswith("p:"))
+async def purchase_action(call: CallbackQuery) -> None:
+    from .. import purchases as shop
+    lang = await user_lang(call.from_user.id)
+    try:
+        _, action, raw_id = call.data.split(":", 2)
+        purchase_id = int(raw_id)
+        ctx = get_context()
+        handler = {"retry": shop.admin_retry, "refund": shop.admin_refund, "done": shop.admin_done}.get(action)
+        if handler is None:
+            await call.answer()
+            return
+        p = await handler(ctx, purchase_id)
+    except ValueError:
+        await call.answer()
+        return
+    except shop.PurchaseError as exc:
+        await call.answer(t(lang, "admin.state_changed", status=exc.detail or exc.code), show_alert=True)
+        return
+    await _mark_done(call, t(lang, "admin.purchase_state", id=p.id, status=t(lang, f"stars.st_{p.status}")))
+
+
+@router.message(Command("balance"))
+async def balance_cmd(message: Message, command: CommandObject) -> None:
+    """/balance <user_id> [+/-amount] — show or change a customer's balance."""
+    from .. import wallet
+    lang = await user_lang(message.from_user.id)
+    parts = (command.args or "").split()
+    try:
+        user_id = int(parts[0])
+        if len(parts) > 1:
+            new = await wallet.admin_adjust(user_id, int(parts[1].replace("_", "")), message.from_user.id)
+        else:
+            new = await wallet.balance_of(user_id)
+    except (IndexError, ValueError):
+        await message.answer(t(lang, "admin.balance_usage"))
+        return
+    except wallet.WalletError as exc:
+        await message.answer(t(lang, f"error.{exc.code}"))
+        return
+    await message.answer(t(lang, "admin.balance_now", id=user_id, amount=fmt_sum(new)))
 
 
 @router.callback_query(F.data.startswith("a:"))

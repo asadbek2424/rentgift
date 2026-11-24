@@ -275,17 +275,35 @@ class HotWallet:
                               init=self.state_init if seqno == 0 else None, body=body)
         return external.serialize()
 
-    async def send(self, tx: dict) -> str:
-        """Sign and broadcast; returns the external message BoC (base64)."""
-        seqno = await self.seqno()
-        boc = base64.b64encode(self.build_transfer(tx, seqno).to_boc()).decode()
-        response = await self._http.post("/api/v2/sendBoc", json={"boc": boc})
-        if response.status_code != 200 or not response.json().get("ok", False):
-            need = sum(int(m.get("amount") or 0) for m in tx.get("messages") or [])
-            have = await self.balance_nano()
-            if have is not None and have < need + 50_000_000:
-                raise HotWalletError(f"not enough GRAM/TON in the hot wallet: balance {have / 1e9:.3f}, "
-                                     f"needed ≈ {(need + 50_000_000) / 1e9:.3f} — top up "
-                                     f"{self.address.to_str(is_bounceable=False)}")
-            raise HotWalletError(f"Broadcast failed (HTTP {response.status_code})")
-        return boc
+    async def send(self, tx: dict, wait_seconds: float = 45) -> str:
+        """Sign and broadcast; returns the external message BoC (base64).
+
+        Sends are serialised and each waits (up to ``wait_seconds``) until the wallet seqno moves, so two
+        payments in a row never reuse the same seqno. ``last_confirmed`` tells whether the move was seen."""
+        import asyncio
+        if not hasattr(self, "_send_lock"):
+            self._send_lock = asyncio.Lock()
+        async with self._send_lock:
+            seqno = await self.seqno()
+            self.last_seqno, self.last_confirmed = seqno, False
+            boc = base64.b64encode(self.build_transfer(tx, seqno).to_boc()).decode()
+            response = await self._http.post("/api/v2/sendBoc", json={"boc": boc})
+            if response.status_code != 200 or not response.json().get("ok", False):
+                need = sum(int(m.get("amount") or 0) for m in tx.get("messages") or [])
+                have = await self.balance_nano()
+                if have is not None and have < need + 50_000_000:
+                    raise HotWalletError(f"not enough GRAM/TON in the hot wallet: balance {have / 1e9:.3f}, "
+                                         f"needed ≈ {(need + 50_000_000) / 1e9:.3f} — top up "
+                                         f"{self.address.to_str(is_bounceable=False)}")
+                raise HotWalletError(f"Broadcast failed (HTTP {response.status_code})")
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + wait_seconds
+            while loop.time() < deadline:
+                await asyncio.sleep(3)
+                try:
+                    if await self.seqno() > seqno:
+                        self.last_confirmed = True
+                        break
+                except Exception:  # noqa: BLE001 — keep waiting
+                    pass
+            return boc

@@ -31,9 +31,10 @@ export async function adminView(view, h) {
   const app = state.me.app;
   const hot = app.wallet_mode === 'hot';
   view.innerHTML = `<div class="skeleton" style="height:90px"></div><div class="skeleton mt" style="height:300px"></div>`;
-  let stats, data;
+  let stats, data, topups, buys;
   try {
-    [stats, data] = await Promise.all([api.admin.stats(), api.admin.orders(filter)]);
+    [stats, data, topups, buys] = await Promise.all([api.admin.stats(), api.admin.orders(filter),
+      api.admin.topups('open'), api.admin.purchases('open')]);
   } catch (e) { view.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
   if (state.tab !== 'admin') return;
 
@@ -47,7 +48,7 @@ export async function adminView(view, h) {
       case 'awaiting_payment': return b('confirm-payment', 'btn_confirm', 'green') + b('cancel', 'btn_cancel', 'ghost');
       case 'paid': return b('sign', 'btn_rent', '') + b('refunded', 'btn_refunded') + b('cancel', 'btn_cancel', 'ghost');
       case 'connect_signing': return b('sign', 'btn_sign', '');
-      case 'failed': return b('retry', 'btn_retry') + b('refunded', 'btn_refunded') + b('cancel', 'btn_cancel', 'ghost');
+      case 'failed': return b('retry', 'btn_retry') + b('refunded', 'btn_refunded') + b('tobalance', 'btn_tobalance') + b('cancel', 'btn_cancel', 'ghost');
       default: return '';
     }
   };
@@ -72,12 +73,30 @@ export async function adminView(view, h) {
         <button class="btn secondary mt" id="w-btn">${icons.wallet.replace('<svg', '<svg width="18" height="18"')} ${esc(t('admin.connect_wallet'))}</button></div>`;
 
   const s = stats.settings;
+  const who = u => `${esc(u?.name || u?.id || '')}${u?.username ? ` · @${esc(u.username)}` : ''} · id ${u?.id}`;
+  const topupCard = x => `<div class="card admin-card"><b>💰 #${x.id} · ${money(x.amount_uzs)}</b>
+      <div class="meta">${who(x.user)}<br>${esc(t(`wallet.st_${x.status}`))} · ${esc(dateTime(x.created_at))}</div>
+      <div class="actions"><button class="btn small green" data-tp="confirm" data-id="${x.id}">${esc(t('admin.btn_credit'))}</button>
+        <button class="btn small danger" data-tp="reject" data-id="${x.id}">${esc(t('admin.btn_reject'))}</button></div></div>`;
+  const buyCard = x => {
+    const what = x.kind === 'stars' ? `${x.quantity} ⭐` : `Premium ${x.quantity}`;
+    const acts = x.status === 'signing' ? `<button class="btn small" data-pc="sign" data-id="${x.id}">${esc(t('admin.btn_sign'))}</button>`
+      : x.status === 'failed' ? `<button class="btn small secondary" data-pc="retry" data-id="${x.id}">${esc(t('admin.btn_retry'))}</button>
+        <button class="btn small green" data-pc="done" data-id="${x.id}">${esc(t('admin.btn_mark_done'))}</button>` : '';
+    return `<div class="card admin-card"><b>⭐ #${x.id} · ${esc(what)} → @${esc(x.recipient)}</b>
+      <div class="meta">${who(x.user)}<br>${money(x.price_uzs)} · ${esc(x.cost_ton)} TON · ${esc(t(`stars.st_${x.status}`))}${x.error ? `<br><span style="color:#ff98a2">⚠ ${esc(x.error)}</span>` : ''}</div>
+      <div class="actions">${acts}${['signing', 'failed', 'pending'].includes(x.status) ? `<button class="btn small danger" data-pc="refund" data-id="${x.id}">${esc(t('admin.btn_refunded'))}</button>` : ''}</div></div>`;
+  };
   view.innerHTML = `
     <div class="stat-row"><div class="stat"><span>${esc(t('admin.revenue'))}</span><b>${money(stats.revenue_uzs)}</b></div>
       <div class="stat"><span>${esc(t('admin.profit_total'))}</span><b style="color:#ffc27a">${money(stats.profit_uzs)}</b></div>
       <div class="stat"><span>${esc(t('admin.current_rate'))} · 1 TON</span><b>${stats.rate ? money(stats.rate) : '—'}</b></div>
-      <div class="stat"><span>USD</span><b>${stats.uzs_per_usd ? esc(t('admin.usd_rate', { v: Number(stats.uzs_per_usd).toLocaleString('ru-RU') })) : '—'}</b></div></div>
+      <div class="stat"><span>USD</span><b>${stats.uzs_per_usd ? esc(t('admin.usd_rate', { v: Number(stats.uzs_per_usd).toLocaleString('ru-RU') })) : '—'}</b></div>
+      <div class="stat"><span>${esc(t('admin.balances_total'))}</span><b>${money(stats.balances_uzs || 0)}</b></div>
+      <div class="stat"><span>${esc(t('admin.hot_balance'))}</span><b>${stats.hot_balance != null ? esc(stats.hot_balance) + ' TON' : '—'}</b></div></div>
     ${walletCard}
+    ${topups.items.length ? `<div class="section-title">${esc(t('admin.tab_topups'))} · ${topups.items.length}</div>${topups.items.map(topupCard).join('')}` : ''}
+    ${buys.items.length ? `<div class="section-title">${esc(t('admin.tab_purchases'))} · ${buys.items.length}</div>${buys.items.map(buyCard).join('')}` : ''}
     <div class="chips mt2">${chips}</div>
     <div id="orders">${data.items.length ? data.items.map(card).join('') : `<div class="empty">${esc(t('admin.empty'))}</div>`}</div>
     <div class="section-title">${esc(t('admin.pricing'))}</div>
@@ -93,6 +112,9 @@ export async function adminView(view, h) {
         <label>${esc(t('admin.round_to'))}<input class="input" id="s-round" inputmode="numeric" value="${esc(s.round_to)}"></label></div>
       <div class="pair"><label>${esc(t('admin.rate_mode'))}<select class="input" id="s-mode"><option value="auto">${esc(t('admin.rate_auto'))}</option><option value="manual">${esc(t('admin.rate_manual'))}</option></select></label>
         <label>${esc(t('admin.manual_rate'))}<input class="input" id="s-rate" inputmode="decimal" value="${esc(s.manual_rate)}"></label></div>
+      <div class="pair"><label>${esc(t('admin.stars_markup'))}<input class="input" id="s-stars" inputmode="decimal" value="${esc(s.stars_markup_percent)}"></label>
+        <label>${esc(t('admin.premium_markup'))}<input class="input" id="s-premium" inputmode="decimal" value="${esc(s.premium_markup_percent)}"></label></div>
+      <label>${esc(t('admin.referral_percent'))}<input class="input" id="s-ref" inputmode="decimal" value="${esc(s.referral_percent)}"></label>
       <div class="calc"><b>${esc(t('admin.calc'))}</b>
         <div class="pair mt"><label style="display:grid;gap:6px;font-size:12.5px;color:var(--muted)">${esc(t('admin.calc_input'))}<input class="input" id="c-ton" inputmode="decimal" value="0.05"></label>
           <label style="display:grid;gap:6px;font-size:12.5px;color:var(--muted)">${esc(t('admin.calc_days'))}<input class="input" id="c-days" inputmode="numeric" value="3"></label></div>
@@ -105,6 +127,10 @@ export async function adminView(view, h) {
       <label>${esc(t('admin.card_bank'))}<input class="input" id="s-bank" value="${esc(s.card_bank)}"></label>
     </div>
     <button class="btn mt" id="s-save">${esc(t('admin.save'))}</button>
+    <div class="section-title">${esc(t('admin.user_balance'))}</div>
+    <div class="card form-grid"><div class="pair"><label>${esc(t('admin.user_id'))}<input class="input" id="ub-id" inputmode="numeric"></label>
+      <label>${esc(t('admin.delta'))}<input class="input" id="ub-delta" inputmode="numeric" placeholder="+50000"></label></div>
+      <button class="btn secondary" id="ub-go">${esc(t('admin.apply'))}</button></div>
     <div class="section-title">${esc(t('admin.stats'))}</div>
     <div class="card form-grid">
       <button class="btn secondary" id="do-backup">${esc(t('admin.backup'))}</button>
@@ -119,7 +145,9 @@ export async function adminView(view, h) {
         profit_fixed_uzs: $('#s-fixed', view).value || '0', round_to: $('#s-round', view).value || '10',
         service_fee_uzs: $('#s-service', view).value || '0', min_rent_days: $('#s-mindays', view).value || '1',
         rate_mode: $('#s-mode', view).value, manual_rate: $('#s-rate', view).value || '0', card_number: $('#s-card', view).value,
-        card_holder: $('#s-holder', view).value, card_bank: $('#s-bank', view).value });
+        card_holder: $('#s-holder', view).value, card_bank: $('#s-bank', view).value,
+        stars_markup_percent: $('#s-stars', view).value || '0', premium_markup_percent: $('#s-premium', view).value || '0',
+        referral_percent: $('#s-ref', view).value || '0' });
       toast(t('admin.saved'));
       state.me = await api.me();
       state.gifts = []; state.giftsLoaded = false; state.collections = null;   // prices changed
@@ -181,8 +209,8 @@ export async function adminView(view, h) {
     };
   }
 
-  const sign = async id => {
-    const prepared = await api.admin.prepare(id);
+  const sign = async (id, purchase = false) => {
+    const prepared = purchase ? await api.admin.purchaseAction(id, 'prepare-tx') : await api.admin.prepare(id);
     if (prepared.hot) return;
     if (!tc) tc = await getTonConnect(app.manifest_url);
     if (!tc.account) { await tc.openModal(); toast(t('admin.connect_wallet')); return 'retry'; }
@@ -196,7 +224,8 @@ export async function adminView(view, h) {
     });
     const validUntil = Math.min(Number(tx.validUntil) || Math.floor(Date.now() / 1000) + 300, Math.floor(Date.now() / 1000) + 600);
     const result = await tc.sendTransaction({ validUntil, messages });
-    await api.admin.sent(id, result.boc, tc.account.address);
+    if (purchase) await api.admin.purchaseAction(id, 'tx-sent', { boc: result.boc });
+    else await api.admin.sent(id, result.boc, tc.account.address);
     toast(t('admin.tx_sent'));
   };
 
@@ -223,6 +252,28 @@ export async function adminView(view, h) {
       btn.disabled = false;
     }
   });
+
+  const ask = key => new Promise(res => (tg?.showConfirm ? tg.showConfirm(t(key), res) : res(confirm(t(key)))));
+  view.querySelectorAll('[data-tp]').forEach(btn => btn.onclick = async () => {
+    btn.disabled = true;
+    try { await api.admin.topupAction(btn.dataset.id, btn.dataset.tp); toast(t('admin.saved')); render(); }
+    catch (e) { toast(errText(e) + (e.detail ? ` (${e.detail})` : ''), true); btn.disabled = false; }
+  });
+  view.querySelectorAll('[data-pc]').forEach(btn => btn.onclick = async () => {
+    const act = btn.dataset.pc, id = Number(btn.dataset.id);
+    if (act === 'refund' && !await ask('admin.confirm_refunded')) return;
+    btn.disabled = true;
+    try {
+      if (act === 'sign') await sign(id, true); else await api.admin.purchaseAction(id, act);
+      render();
+    } catch (e) { toast(errText(e) + (e.detail ? ` (${e.detail})` : ''), true); btn.disabled = false; }
+  });
+  $('#ub-go', view).onclick = async () => {
+    const id = Number($('#ub-id', view).value.replace(/\D/g, '')), delta = Number($('#ub-delta', view).value.replace(/[^\d-]/g, ''));
+    if (!id || !delta) return;
+    try { const r = await api.admin.userBalance(id, delta); toast(`${id}: ${money(r.balance_uzs)}`); }
+    catch (e) { toast(errText(e), true); }
+  };
 
   if (state.adminFocus) {
     const el = $(`#o-${state.adminFocus}`, view);

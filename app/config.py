@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     card_bank: str = ""
     payment_window_minutes: int = 30
     unique_amount_max: int = 99              # each order gets +1..N so'm so the bank notice identifies it (0 = off)
+    topup_min_uzs: int = 5000                # balance top-up limits
+    topup_max_uzs: int = 5_000_000
+    referral_percent: float = 1.0            # % of every referred user's paid amount credited to the inviter
+    stars_markup_percent: float = 10.0       # profit on Telegram Stars over the Fragment price
+    premium_markup_percent: float = 10.0     # profit on Telegram Premium over the Fragment price
+    purchase_confirm_minutes: int = 10       # Stars/Premium: wait this long for the wallet to confirm, then flag
 
     # --- Automatic payment check (CardXabar / Uzcard notifications) ----------------
     auto_confirm_payments: bool = True       # confirm an order when a matching card notice arrives

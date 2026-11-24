@@ -129,6 +129,28 @@ Sozlash:
 
 Eslatma: faqat `➕` (kirim) qatori o'qiladi, balans qatori e'tiborga olinmaydi; `➖` chiqimlar va boshqa karta (`CARD_LAST4`dan farqli) xabarlari tashlab yuboriladi; bitta xabar ikki marta hisoblanmaydi.
 
+## Balans, Stars/Premium, Username va Raqam ijarasi
+
+**Balans.** Mijoz ilovada summani tanlaydi (masalan 50 000) va unga noyob summa beriladi (masalan 50 037). U kartaga aynan shu summani o'tkazadi, CardXabar xabari kelishi bilan balans o'zi to'ladi. Chek yuklanmaydi. Ijara, Stars va Premium balansdan bir tugma bilan to'lanadi. Mos kelmagan yoki kech kelgan pul uchun adminga «✅ Balansga qo'shish» tugmali xabar keladi.
+- Chegaralar: `TOPUP_MIN_UZS` (5 000) va `TOPUP_MAX_UZS` (5 000 000).
+- Qo'lda o'zgartirish: `/balance <user_id> +50000` (yoki `-50000`). Admin paneldagi «Mijoz balansini o'zgartirish» ham shu ishni qiladi.
+- Balansdan to'langan buyurtma muvaffaqiyatsiz bo'lsa, «Pul qaytarildi» bosilganda summa balansga avtomatik qaytadi. Karta orqali to'langan buyurtma uchun «💰 Balansga qaytarish» tugmasi bor.
+
+**Stars va Premium.** Bular Marketapp'ning bepul `fragment` endpointlari orqali ishlaydi. Mijoz istalgan @username'ga Stars (50–1 000 000) yoki Premium (3/6/12 oy) sotib oladi.
+- Narx: Fragment narxi × kurs × (1 + ustama%). Ustama: `STARS_MARKUP_PERCENT`, `PREMIUM_MARKUP_PERCENT`. Ikkalasining standart qiymati 10%, admin panelda o'zgartirsa bo'ladi.
+- **Hot rejimda** bot to'lovni o'zi imzolaydi. **TON Connect rejimida** adminga «🔐 Hamyonda tasdiqlash» xabari keladi.
+- To'lov hamyondan chiqmasdan xato bo'lsa, pul mijoz balansiga avtomatik qaytadi.
+
+**Username va anonim raqamlar.** Katalogda «@ Username» va «📞 Raqam» bo'limlari bor.
+- Username ijaraga olingach, mijoz uni Fragment «Connect TON» havolasi orqali ulaydi.
+- Raqam ijaraga olingach, buyurtma darhol faol bo'ladi. Mijoz Telegram'da shu raqam bilan kiradi va kirish kodini ilovadagi «Kirish kodini olish» tugmasi orqali oladi.
+
+**Referal va reyting.** Har bir mijozning havolasi `t.me/<bot>?start=ref_<id>` ko'rinishida.
+- Taklif qilingan do'stning har bir to'lovidan `REFERRAL_PERCENT` (standart 1%) taklif qilgan odam balansiga tushadi.
+- Top reytingda eng ko'p xarid qilganlar ko'rsatiladi, ismlar yashiriladi.
+
+**Admin.** Admin panelda quyidagilar bor: ochiq to'ldirishlar, Stars/Premium xaridlari, hot hamyon balansi, mijozlar balanslari yig'indisi va ustama sozlamalari. Bot buyruqlari: `/notices`, `/userbot`, `/balance`.
+
 ## Admin qanday ishlaydi
 
 1. Mijoz chek yuboradi. Botga chek rasmi **✅ To'lov keldi / ❌ Rad etish / 🚫 Bekor qilish** tugmalari bilan keladi. Bank ilovangizda pul tushganini tekshirib, tugmani bosing.

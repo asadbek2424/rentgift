@@ -126,6 +126,7 @@ def order_view(order: Order, *, admin: bool = False, settings=None) -> dict:
         "end_time": aware(order.end_time).isoformat() if order.end_time else None,
         "has_receipt": bool(order.receipt_file_id), "error": order.error,
         "kind": order.kind or "rent", "parent_id": order.parent_id,
+        "category": order.category or "gift", "paid_by": order.paid_by or "card",
         "service_fee_uzs": order.service_fee_uzs or 0,
         "unique_add_uzs": order.unique_add_uzs or 0,
         "rent_uzs": order.amount_uzs - (order.service_fee_uzs or 0) - (order.unique_add_uzs or 0),
@@ -150,7 +151,8 @@ async def unique_amount(session, base_uzs: int, max_add: int) -> int:
     The bank notice (CardXabar) only says "+3 093 so'm"; a unique amount is how we know which order paid."""
     if max_add <= 0:
         return 0
-    taken = set((await session.execute(select(Order.amount_uzs).where(Order.status.in_(S.UNPAID)))).scalars())
+    from .wallet import taken_amounts
+    taken = await taken_amounts(session)
     free = [add for add in range(1, max_add + 1) if base_uzs + add not in taken]
     if not free:
         raise ServiceError("too_many_orders", 429)
@@ -175,14 +177,15 @@ async def _listing(ctx: AppContext, nft_address: str) -> dict:
                 "collection_address": item.get("_collection") or "", "attributes": item.get("attributes") or [],
                 "price_per_day": str(item.get("price_per_day")), "min_duration": int(item.get("min_duration") or DAY),
                 "max_duration": int(item.get("max_duration") or DAY),
-                "sellable": bool(item.get("is_sellable_during_rent", False))}
+                "sellable": bool(item.get("is_sellable_during_rent", False)),
+                "category": item.get("_category") or "gift"}
     if ctx.settings.marketapp_paid_plan:
         info = await _nft_info(ctx, nft_address)
         details = _listing_from_info(info)
         return {"address": info.get("address") or nft_address, "name": str(info.get("name") or ""),
                 "collection_address": info.get("collection_address") or "", "attributes": info.get("attributes") or [],
                 "price_per_day": str(details["price_per_day"]), "min_duration": int(details["min_duration"]),
-                "max_duration": int(details["max_duration"]), "sellable": False}
+                "max_duration": int(details["max_duration"]), "sellable": False, "category": "gift"}
     raise ServiceError("listing_stale", 409)
 
 
@@ -234,7 +237,9 @@ async def create_order(ctx: AppContext, user_id: int, nft_address: str, days: in
     attributes = listing["attributes"]
     order = Order(
         user_id=user_id, status=S.AWAITING_PAYMENT, nft_address=str(listing["address"]), sellable=listing["sellable"],
-        nft_name=name, collection_address=str(listing["collection_address"]), image_url=image_url(name),
+        category=listing.get("category", "gift"),
+        nft_name=name, collection_address=str(listing["collection_address"]),
+        image_url=image_url(name) if listing.get("category", "gift") == "gift" else "",
         attributes_json=json.dumps([{"trait_type": k, "value": attr(attributes, k)}
                                     for k in ("Model", "Backdrop", "Symbol") if attr(attributes, k)]),
         days=days, price_per_day_nano=str(quote.price_per_day_nano), ton_total_nano=str(quote.ton_total_nano),
@@ -490,7 +495,7 @@ async def display_gift(ctx: AppContext, order_id: int, actor: str) -> Order:
 async def tg_connect(ctx: AppContext, user_id: int, order_id: int) -> dict:
     """Step 1: start (or reuse) the customer's Telegram login. Returns {status, link?, order?}."""
     order = await get_order(order_id, user_id)
-    if order.status not in (S.AWAITING_LINK, S.ACTIVE):
+    if order.status not in (S.AWAITING_LINK, S.ACTIVE) or (order.category or "gift") != "gift":
         raise ServiceError("bad_state", 409, order.status)
     try:
         response = await ctx.market.tg_connect(customer_id(user_id))
@@ -526,6 +531,36 @@ async def tg_poll(ctx: AppContext, user_id: int, order_id: int) -> dict:
     return {"status": status or "waiting", "link": response.get("link")}
 
 
+async def login_code(ctx: AppContext, user_id: int, order_id: int) -> dict:
+    """Telegram login code for a rented anonymous number (shown in the Mini App)."""
+    order = await get_order(order_id, user_id)
+    if (order.category or "gift") != "number" or order.status != S.ACTIVE:
+        raise ServiceError("bad_state", 409, order.status)
+    try:
+        response = await ctx.market.login_code(order.nft_address)
+    except MarketappError as exc:
+        text = json.dumps(exc.detail) if exc.detail else str(exc)
+        if "disabled" in text.lower() or "enable" in text.lower():
+            try:
+                await ctx.market.toggle_login_code(order.nft_address, True)
+                response = await ctx.market.login_code(order.nft_address)
+            except MarketappError:
+                raise ServiceError("no_code", 409) from None
+        else:
+            raise ServiceError("no_code" if exc.status in (400, 404) else "marketapp", 409) from None
+    code = ""
+    if isinstance(response, dict):
+        for key in ("code", "login_code", "value"):
+            if response.get(key):
+                code = str(response[key])
+                break
+    elif response:
+        code = str(response)
+    if not code:
+        raise ServiceError("no_code", 409)
+    return {"code": code, "number": order.nft_name}
+
+
 async def _tg_ready(user_id: int) -> bool:
     async with Session() as session:
         user = await session.get(User, user_id)
@@ -533,25 +568,50 @@ async def _tg_ready(user_id: int) -> bool:
 
 
 # ---------------------------------------------------------------------------- admin actions
-async def confirm_payment(ctx: AppContext, order_id: int, admin_id: int) -> Order:
-    order = await _transition(order_id, {S.PAYMENT_REVIEW, S.AWAITING_PAYMENT}, S.PAID, f"admin:{admin_id}", paid_at=utcnow())
+async def _after_paid(ctx: AppContext, order: Order) -> Order:
+    from .wallet import record_spend
+    await record_spend(ctx, order.user_id, int(order.amount_uzs), "order", order.id)
     await ctx.notifier.user(order, "payment_confirmed")
     if ctx.hot_wallet is not None and ctx.settings.auto_rent:
         try:
-            return await start_rent_hot(ctx, order_id, "system:auto")
+            return await start_rent_hot(ctx, order.id, "system:auto")
         except ServiceError as exc:
             await ctx.notifier.admin(order, "failed", buttons="paid", error=exc.detail or exc.code)
-            return await get_order(order_id)
+            return await get_order(order.id)
     await ctx.notifier.admin(order, "paid_ready", buttons="paid")
     return order
+
+
+async def confirm_payment(ctx: AppContext, order_id: int, admin_id: int) -> Order:
+    order = await _transition(order_id, {S.PAYMENT_REVIEW, S.AWAITING_PAYMENT}, S.PAID, f"admin:{admin_id}", paid_at=utcnow())
+    return await _after_paid(ctx, order)
+
+
+async def pay_from_balance(ctx: AppContext, user_id: int, order_id: int) -> Order:
+    """Customer pays an unpaid order with his balance (no card transfer, no unique +N so'm)."""
+    from .wallet import WalletError, credit, debit
+    order = await get_order(order_id, user_id)
+    if order.status != S.AWAITING_PAYMENT:
+        raise ServiceError("bad_state", 409, order.status)
+    price = int(order.amount_uzs) - int(order.unique_add_uzs or 0)
+    try:
+        await debit(user_id, price, "order", order_id)
+    except WalletError as exc:
+        raise ServiceError(exc.code, exc.status) from None
+    try:
+        order = await _transition(order_id, {S.AWAITING_PAYMENT}, S.PAID, f"user:{user_id}", paid_at=utcnow(),
+                                  paid_by="balance", amount_uzs=price, profit_uzs=int(order.profit_uzs or 0)
+                                  - int(order.unique_add_uzs or 0), unique_add_uzs=0)
+    except ServiceError:
+        await credit(user_id, price, "refund", order_id, "order state changed")
+        raise
+    return await _after_paid(ctx, order)
 
 
 async def confirm_late(ctx: AppContext, order_id: int, admin_id: int) -> Order:
     """Money arrived after the payment window closed: reopen the cancelled order as paid."""
     order = await _transition(order_id, {S.CANCELLED}, S.PAID, f"admin:{admin_id}", paid_at=utcnow(), note="late payment")
-    await ctx.notifier.user(order, "payment_confirmed")
-    await ctx.notifier.admin(order, "paid_ready", buttons="paid")
-    return order
+    return await _after_paid(ctx, order)
 
 
 async def reject_payment(ctx: AppContext, order_id: int, admin_id: int) -> Order:
@@ -570,8 +630,25 @@ async def admin_cancel(ctx: AppContext, order_id: int, admin_id: int) -> Order:
 
 
 async def mark_refunded(ctx: AppContext, order_id: int, admin_id: int) -> Order:
+    """Balance orders are refunded to the balance automatically; card orders are refunded by hand."""
     order = await _transition(order_id, {S.FAILED, S.PAID, S.CANCELLED}, S.REFUNDED, f"admin:{admin_id}")
-    await ctx.notifier.user(order, "refunded")
+    if (order.paid_by or "card") == "balance" and order.paid_at:
+        from .wallet import credit
+        await credit(order.user_id, int(order.amount_uzs), "refund", order_id)
+        await ctx.notifier.user(order, "refunded_balance")
+    else:
+        await ctx.notifier.user(order, "refunded")
+    return order
+
+
+async def refund_to_balance(ctx: AppContext, order_id: int, admin_id: int) -> Order:
+    """Card-paid order that failed: give the money back as balance instead of a card transfer."""
+    from .wallet import credit
+    order = await _transition(order_id, {S.FAILED, S.PAID, S.CANCELLED}, S.REFUNDED, f"admin:{admin_id}",
+                              note="refunded to balance")
+    if order.paid_at:
+        await credit(order.user_id, int(order.amount_uzs), "refund", order_id)
+    await ctx.notifier.user(order, "refunded_balance")
     return order
 
 
@@ -702,9 +779,26 @@ async def _confirm_chain(ctx: AppContext, order: Order, item: dict, now: datetim
         return await _apply_extension(ctx, order, item, now)
     end = item.get("end_time")
     end_dt = datetime.fromtimestamp(int(end), timezone.utc) if end else now + timedelta(days=order.days)
+    category = order.category or "gift"
+    if category == "number":                  # anonymous number: works right away through login codes
+        try:
+            order = await _transition(order.id, {S.RENTING}, S.ACTIVE, "system", rented_at=now, end_time=end_dt,
+                                      connected_at=now)
+        except ServiceError:
+            return True
+        try:
+            await ctx.market.toggle_login_code(order.nft_address, True)
+        except MarketappError as exc:
+            log.warning("toggle-login-code failed for order %s: %s", order.id, exc)
+        await ctx.notifier.user(order, "number_ready")
+        await ctx.notifier.admin(order, "activated")
+        return True
     try:
         order = await _transition(order.id, {S.RENTING}, S.AWAITING_LINK, "system", rented_at=now, end_time=end_dt)
     except ServiceError:
+        return True
+    if category == "username":                # usernames connect through fragment.com "Connect TON"
+        await ctx.notifier.user(order, "awaiting_link_username")
         return True
     if await _tg_ready(order.user_id):
         try:                          # Telegram already connected earlier: show the gift right away
@@ -784,6 +878,14 @@ async def follow_rent_events(ctx: AppContext, now: datetime) -> int:
 
 async def worker_tick(ctx: AppContext) -> None:
     now = utcnow()
+
+    # 0. balance top-ups past their window, Stars/Premium waiting for the wallet
+    from . import purchases, wallet
+    try:
+        await wallet.expire_topups(now)
+        await purchases.worker_tick(ctx)
+    except Exception:
+        log.exception("Top-up / purchase tick failed")
 
     # 1. unpaid orders past their window
     for order in await _orders({S.AWAITING_PAYMENT}):

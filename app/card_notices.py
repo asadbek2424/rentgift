@@ -27,7 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from .context import AppContext
-from .db import Order, OrderStatus as S, PaymentNotice, Session, aware, utcnow
+from .db import Order, OrderStatus as S, PaymentNotice, Session, Topup, TopupStatus as T, aware, utcnow
 
 log = logging.getLogger(__name__)
 
@@ -113,18 +113,37 @@ async def handle_notice(ctx: AppContext, source_key: str, text: str) -> dict:
         return await _finish(ctx, notice_id, "unmatched", None, int(amount))
     amount_int = int(amount)
     now = utcnow()
+    late_from = now - timedelta(minutes=ctx.settings.card_notify_late_minutes)
     async with Session() as session:
         candidates = list((await session.execute(
             select(Order).where(Order.amount_uzs == amount_int, Order.status.in_(S.UNPAID)))).scalars())
-        if not candidates:
-            late_from = now - timedelta(minutes=ctx.settings.card_notify_late_minutes)
-            candidates = [o for o in (await session.execute(
+        topups = list((await session.execute(
+            select(Topup).where(Topup.amount_uzs == amount_int, Topup.status.in_(T.OPEN)))).scalars())
+        if not candidates and not topups:
+            late_orders = [o for o in (await session.execute(
                 select(Order).where(Order.amount_uzs == amount_int, Order.status == S.CANCELLED))).scalars()
                 if aware(o.updated_at) and aware(o.updated_at) >= late_from]
-            if candidates:                          # paid after the window closed: let the admin decide
-                return await _finish(ctx, notice_id, "late", candidates[0].id, amount_int)
-    if len(candidates) != 1:
-        return await _finish(ctx, notice_id, "ambiguous" if candidates else "unmatched", None, amount_int)
+            late_topups = [t for t in (await session.execute(
+                select(Topup).where(Topup.amount_uzs == amount_int,
+                                    Topup.status.in_({T.CANCELLED, T.EXPIRED})))).scalars()
+                if aware(t.updated_at) and aware(t.updated_at) >= late_from]
+            if late_topups:                         # top-up paid after its window: the admin decides
+                return await _finish(ctx, notice_id, "late_topup", late_topups[0].id, amount_int)
+            if late_orders:                         # paid after the window closed: let the admin decide
+                return await _finish(ctx, notice_id, "late", late_orders[0].id, amount_int)
+    if len(candidates) + len(topups) != 1:
+        found = candidates or topups
+        return await _finish(ctx, notice_id, "ambiguous" if found else "unmatched", None, amount_int)
+    if topups:
+        from . import wallet
+        topup = topups[0]
+        if not ctx.settings.auto_confirm_payments:
+            return await _finish(ctx, notice_id, "topup_manual", topup.id, amount_int)
+        try:
+            await wallet.confirm_topup(ctx, topup.id, "auto:notice")
+        except wallet.WalletError:
+            return await _finish(ctx, notice_id, "unmatched", None, amount_int)
+        return await _finish(ctx, notice_id, "topup", topup.id, amount_int)
     order = candidates[0]
     if not ctx.settings.auto_confirm_payments:
         return await _finish(ctx, notice_id, "matched_manual", order.id, amount_int)
@@ -142,12 +161,25 @@ async def _finish(ctx: AppContext, notice_id: int, result: str, order_id: int | 
         record.order_id = order_id
         await session.commit()
     from .orders import get_order
-    if result == "matched":
+    paid = f"{amount:,}".replace(",", " ")
+    if result in ("topup", "topup_manual", "late_topup"):
+        notify = getattr(ctx.notifier, "admin_topup", None)
+        if notify:
+            from .wallet import get_topup
+            await notify(await get_topup(order_id), {"topup": "topup_auto", "topup_manual": "topup_check",
+                                                      "late_topup": "topup_late"}[result], paid=paid)
+    elif result == "matched":
         await ctx.notifier.admin(await get_order(order_id), "auto_paid")
     elif result in ("late", "matched_manual"):
         await ctx.notifier.admin(await get_order(order_id), "notice_check", buttons="late" if result == "late" else "review",
                                  paid=f"{amount:,}".replace(",", " "))
     else:
-        await ctx.notifier.admin_text("notice_unmatched", amount=f"{amount:,}".replace(",", " "), reason=result)
+        # Ordinary incoming transfers (not from customers) are only logged; the admin is told only while
+        # some order is waiting for payment — then a mismatch probably matters.
+        async with Session() as session:
+            waiting = (await session.execute(select(Order.id).where(Order.status.in_(S.UNPAID)).limit(1))).first() \
+                or (await session.execute(select(Topup.id).where(Topup.status.in_(T.OPEN)).limit(1))).first()
+        if waiting:
+            await ctx.notifier.admin_text("notice_unmatched", amount=f"{amount:,}".replace(",", " "), reason=result)
     log.info("Card notice %s: %s order=%s amount=%s", notice_id, result, order_id, amount)
     return {"result": result, "order_id": order_id, "amount": amount}

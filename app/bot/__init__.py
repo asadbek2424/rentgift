@@ -34,6 +34,7 @@ async def configure_bot(bot: Bot, settings: Settings) -> None:
                       BotCommand(command="broadcast", description="Broadcast / Рассылка / Xabar yuborish"),
                       BotCommand(command="backup", description="Backup / Zaxira"),
                       BotCommand(command="userbot", description="CardXabar akkaunt ulash / status"),
+                      BotCommand(command="notices", description="CardXabar xabarlari / Уведомления"),
                       BotCommand(command="order", description="/order 12"),
                       BotCommand(command="markup", description="/markup 15"),
                       BotCommand(command="rate", description="/rate auto"),

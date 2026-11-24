@@ -42,6 +42,20 @@ export const api = {
   extend: (id, days) => request('POST', `/api/orders/${id}/extend`, { days }),
   tgConnect: id => request('POST', `/api/orders/${id}/tg-connect`),
   tgStatus: id => request('GET', `/api/orders/${id}/tg-status`),
+  payBalance: id => request('POST', `/api/orders/${id}/pay-balance`),
+  loginCode: id => request('GET', `/api/orders/${id}/login-code`),
+  balance: () => request('GET', '/api/balance'),
+  topup: amount => request('POST', '/api/topups', { amount }),
+  topupGet: id => request('GET', `/api/topups/${id}`),
+  topupCancel: id => request('POST', `/api/topups/${id}/cancel`),
+  stars: () => request('GET', '/api/stars'),
+  starsQuote: quantity => request('GET', `/api/stars/quote?quantity=${quantity}`),
+  premium: () => request('GET', '/api/premium'),
+  recipient: (kind, username) => request('POST', '/api/recipient', { kind, username }),
+  purchase: (kind, username, quantity) => request('POST', '/api/purchases', { kind, username, quantity }),
+  purchases: () => request('GET', '/api/purchases'),
+  referral: () => request('GET', '/api/referral'),
+  top: () => request('GET', '/api/top'),
   admin: {
     orders: filter => request('GET', `/api/admin/orders?filter=${filter}`),
     stats: () => request('GET', '/api/admin/stats'),
@@ -51,6 +65,11 @@ export const api = {
     prepare: id => request('POST', `/api/admin/orders/${id}/prepare-tx`),
     sent: (id, boc, wallet) => request('POST', `/api/admin/orders/${id}/tx-sent`, { boc, wallet }),
     receiptUrl: id => `/api/admin/orders/${id}/receipt`,
+    topups: filter => request('GET', `/api/admin/topups?filter=${filter}`),
+    topupAction: (id, action) => request('POST', `/api/admin/topups/${id}/${action}`),
+    purchases: filter => request('GET', `/api/admin/purchases?filter=${filter}`),
+    purchaseAction: (id, action, body) => request('POST', `/api/admin/purchases/${id}/${action}`, body),
+    userBalance: (id, delta) => request('POST', `/api/admin/users/${id}/balance`, { delta }),
     receiptBlob: async id => {
       const res = await fetch(`/api/admin/orders/${id}/receipt`, { headers: { 'X-Telegram-Init-Data': tg?.initData || '' } });
       if (!res.ok) throw new ApiError('generic', res.status);

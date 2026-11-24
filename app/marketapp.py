@@ -164,6 +164,51 @@ class MarketappClient:
         remember_listings(self.seen, data.get("items") or [], collection_address)
         return data
 
+    async def rent_list(self, category: str, *, cursor: str | None = None, sort_by: str = "recently_touch",
+                        limit: int = 20) -> dict:
+        """Usernames / anonymous numbers for rent (same RentItem shape as gifts)."""
+        path = {"username": "/v1/rent/usernames/", "number": "/v1/rent/numbers/"}[category]
+        if sort_by not in LISTING_SORTS:
+            sort_by = "recently_touch"
+        params = {"cursor": cursor, "sort_by": sort_by, "limit": max(1, min(int(limit), 100))}
+        key = (category,) + tuple(sorted((k, str(v)) for k, v in params.items()))
+        cached = self._listing_cache.get(key)
+        if cached is not None:
+            return cached
+        data = await self._request("GET", path, params=params)
+        self._listing_cache.put(key, data)
+        remember_listings(self.seen, data.get("items") or [], None, category)
+        return data
+
+    # ------------------------------------------------------------------ Fragment: Stars / Premium (free plan)
+    async def stars_price(self, quantity: int) -> dict:
+        return await self._request("POST", "/v1/fragment/stars/price/", json={"quantity": int(quantity)}, retries=2)
+
+    async def stars_recipient(self, username: str) -> dict:
+        return await self._request("POST", "/v1/fragment/stars/recipient/", json={"username": username}, retries=2)
+
+    async def stars_buy(self, username: str, quantity: int) -> dict:
+        return await self._request("POST", "/v1/fragment/stars/buy/",
+                                   json={"username": username, "quantity": int(quantity), "currency": "GRAM"}, retries=1)
+
+    async def premium_price(self) -> dict:
+        return await self._request("POST", "/v1/fragment/premium/price/", retries=2)
+
+    async def premium_recipient(self, username: str) -> dict:
+        return await self._request("POST", "/v1/fragment/premium/recipient/", json={"username": username}, retries=2)
+
+    async def premium_buy(self, username: str, months: int) -> dict:
+        return await self._request("POST", "/v1/fragment/premium/buy/",
+                                   json={"username": username, "months": int(months), "currency": "GRAM"}, retries=1)
+
+    # ------------------------------------------------------------------ anonymous numbers
+    async def toggle_login_code(self, nft_address: str, enabled: bool) -> dict:
+        return await self._request("POST", f"/v1/rent/{self._address(nft_address)}/toggle-login-code/",
+                                   json={"can_receive": 1 if enabled else 0}, retries=1)
+
+    async def login_code(self, nft_address: str) -> dict:
+        return await self._request("GET", f"/v1/rent/{self._address(nft_address)}/login-code/", retries=2)
+
     async def gift_collections(self) -> list[dict]:
         cached = self._collections_cache.get("all")
         if cached is not None:
@@ -268,7 +313,7 @@ class MarketappClient:
 
 
 # ---------------------------------------------------------------------------- listing cache
-def remember_listings(store: dict, items: list, collection_address: str | None) -> None:
+def remember_listings(store: dict, items: list, collection_address: str | None, category: str = "gift") -> None:
     now = time.monotonic()
     if len(store) > 20000:
         store.clear()
@@ -277,7 +322,7 @@ def remember_listings(store: dict, items: list, collection_address: str | None) 
         if not key:
             continue
         previous = store.get(key) or {}
-        store[key] = {**item, "_seen": now,
+        store[key] = {**item, "_seen": now, "_category": category,
                       "_collection": collection_address or previous.get("_collection") or ""}
 
 
@@ -369,7 +414,7 @@ class DemoMarketapp:
             return ((not collection_address or item["_collection"] == collection_address)
                     and (not model or values.get("Model") == model) and (not symbol or values.get("Symbol") == symbol)
                     and (not backdrop or values.get("Backdrop") == backdrop))
-        items = [i for i in self.items if ok(i)]
+        items = [i for i in self.items if ok(i) and i.get("_category", "gift") == "gift"]
         if sort_by in ("price_per_day", "min_price"):
             items.sort(key=lambda i: int(i["price_per_day"]))
         elif sort_by == "item_num_asc":
@@ -435,6 +480,66 @@ class DemoMarketapp:
 
     async def rent_events(self, cursor=None, types=("rented", "cancel"), category="gifts", limit=100) -> dict:
         return {"cursor": cursor or "demo-0", "items": []}
+
+    def _demo_other(self, category: str) -> list[dict]:
+        if not hasattr(self, "_others"):
+            self._others = {}
+        if category not in self._others:
+            words = ["crypto", "gift", "rent", "tashkent", "star", "moon", "uzbek", "boss", "king", "shop", "nft", "ton"]
+            items = []
+            for k in range(24):
+                if category == "username":
+                    name = f"@{words[k % len(words)]}{'' if k < 12 else k}"
+                else:
+                    name = f"+888 0{k % 10}{(k * 7) % 10}{(k * 3) % 10} {1000 + k * 37:04d}"
+                items.append({"nft_address": _demo_address(9000 + k + (0 if category == "username" else 100)),
+                              "nft_name": name, "owner": _demo_address(5000), "attributes": [],
+                              "min_duration": 86400, "max_duration": 30 * 86400,
+                              "price_per_day": str((8 + k * 3) * 10_000_000), "discount_per_day": 0})
+            self._others[category] = items
+            for item in items:
+                self.items.append({**item, "_collection": "", "_num": 0, "_category": category})
+        return self._others[category]
+
+    async def rent_list(self, category, *, cursor=None, sort_by="recently_touch", limit=20) -> dict:
+        items = list(self._demo_other(category))
+        if sort_by in ("price_per_day", "min_price"):
+            items.sort(key=lambda i: int(i["price_per_day"]))
+        start = int(cursor or 0)
+        page = items[start:start + limit]
+        remember_listings(self.seen, page, None, category)
+        return {"items": page, "cursor": str(start + limit) if start + limit < len(items) else None}
+
+    async def stars_price(self, quantity: int) -> dict:
+        gram = round(int(quantity) * 0.0105, 4)
+        return {"ton": gram, "gram": gram, "usd": round(int(quantity) * 0.015, 2)}
+
+    async def stars_recipient(self, username: str) -> dict:
+        if username.lower().startswith("nobody"):
+            raise MarketappError("Marketapp HTTP 400", 400, {"detail": "not found"})
+        return {"name": username.capitalize(), "photo": ""}
+
+    premium_recipient = stars_recipient
+
+    async def premium_price(self) -> dict:
+        return {"months3": {"ton": 8.2, "gram": 8.2}, "months6": {"ton": 11.0, "gram": 11.0},
+                "months12": {"ton": 19.9, "gram": 19.9}}
+
+    async def _fragment_tx(self, gram: float) -> dict:
+        return {"transaction": {"validUntil": int(time.time()) + 300,
+                                "messages": [{"address": _demo_address(7778), "amount": str(int(gram * 1e9)), "payload": None}]}}
+
+    async def stars_buy(self, username: str, quantity: int) -> dict:
+        return await self._fragment_tx((await self.stars_price(quantity))["gram"])
+
+    async def premium_buy(self, username: str, months: int) -> dict:
+        return await self._fragment_tx((await self.premium_price())[f"months{int(months)}"]["gram"])
+
+    async def toggle_login_code(self, nft_address: str, enabled: bool) -> dict:
+        return {"ok": True}
+
+    async def login_code(self, nft_address: str) -> dict:
+        return {"code": "12345"}
 
     async def tonconnect(self, nft_address: str, tonconnect_url: str) -> dict:
         return {"status": "ok"}

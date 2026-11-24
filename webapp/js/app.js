@@ -9,7 +9,7 @@ const haptic = (type = 'light') => { try { tg?.HapticFeedback?.impactOccurred(ty
 const FINAL = new Set(['expired', 'cancelled', 'refunded', 'failed', 'extended']);
 
 const state = {
-  me: null, tab: 'catalog', segment: 'all', sort: 'recently_touch',
+  me: null, tab: 'catalog', segment: 'all', sort: 'recently_touch', category: 'gift', q: '', starsSeg: 'stars',
   filters: { collections: [], model: '', backdrop: '', symbol: '', price_min: '', price_max: '', num_min: '', num_max: '' },
   gifts: [], cursor: null, giftsLoaded: false, giftsError: false, collections: null,
   view: null, orders: null, timers: [], poll: null,
@@ -102,7 +102,12 @@ function renderTopbar() {
   const bar = $('#topbar');
   const user = state.me?.user;
   let center = '';
-  if (state.view) center = `<div class="topbar-title">${esc(t('order.title', { id: state.view.id }))}</div>`;
+  if (state.view?.name === 'order') center = `<div class="topbar-title">${esc(t('order.title', { id: state.view.id }))}</div>`;
+  else if (state.view) center = `<div class="topbar-title">${esc(t(`nav.${state.view.name}`))}</div>`;
+  else if (state.tab === 'stars') center = `<div class="segmented">
+      <button data-sseg="stars" class="${state.starsSeg === 'stars' ? 'active' : ''}">${esc(t('stars.seg_stars'))}</button>
+      <button data-sseg="premium" class="${state.starsSeg === 'premium' ? 'active' : ''}">${esc(t('stars.seg_premium'))}</button></div>`;
+  else if (state.tab === 'catalog' && state.category !== 'gift') center = `<div class="topbar-title">${esc(t(`cat.${state.category}_one`))}</div>`;
   else if (state.tab === 'catalog') center = `<div class="segmented">
       <button data-seg="all" class="${state.segment === 'all' ? 'active' : ''}">${esc(t('catalog.segment_all'))}</button>
       <button data-seg="collections" class="${state.segment === 'collections' ? 'active' : ''}">${esc(t('catalog.segment_collections'))}</button></div>`;
@@ -110,15 +115,19 @@ function renderTopbar() {
   const left = state.view
     ? `<button class="icon-btn" id="tb-back" aria-label="back">${icons.chevronLeft}</button>`
     : `<button class="avatar-pill" id="tb-profile">${avatarHtml(user)}${icons.chevronRight}</button>`;
-  bar.innerHTML = `<div class="left">${left}</div>${center}<div class="right"><button class="icon-btn" id="tb-lang" aria-label="language">${icons.globe}</button></div>`;
+  const bal = user ? `<button class="bal-pill" id="tb-bal"><span class="dot"></span>${esc(Number(user.balance_uzs || 0).toLocaleString('ru-RU'))}<i>${icons.plus}</i></button>` : '';
+  const langBtn = bal ? '' : `<button class="icon-btn" id="tb-lang" aria-label="language">${icons.globe}</button>`;
+  bar.innerHTML = `<div class="left">${left}</div>${center}<div class="right">${bal}${langBtn}</div>`;
   $('#tb-profile', bar)?.addEventListener('click', () => switchTab('profile'));
+  $('#tb-bal', bar)?.addEventListener('click', () => openView('balance'));
+  bar.querySelectorAll('[data-sseg]').forEach(b => b.onclick = () => { state.starsSeg = b.dataset.sseg; haptic(); render(); });
   $('#tb-back', bar)?.addEventListener('click', goBack);
-  $('#tb-lang', bar).onclick = langSheet;
+  $('#tb-lang', bar)?.addEventListener('click', langSheet);
   bar.querySelectorAll('[data-seg]').forEach(b => b.onclick = () => { state.segment = b.dataset.seg; haptic(); render(); });
 }
 
 function renderTabbar() {
-  const tabs = [['catalog', icons.gift], ['rentals', icons.key], ['guide', icons.book], ['profile', icons.user]];
+  const tabs = [['catalog', icons.gift], ['rentals', icons.key], ['stars', icons.star], ['profile', icons.user]];
   if (state.me?.user?.is_admin) tabs.push(['admin', icons.shield]);
   const bar = $('#tabbar');
   bar.innerHTML = tabs.map(([id, icon]) =>
@@ -133,6 +142,16 @@ function switchTab(tab) {
   window.scrollTo({ top: 0 });
 }
 
+export function openView(name, extra = {}) {
+  haptic();
+  state.view = { name, ...extra };
+  render();
+  window.scrollTo({ top: 0 });
+}
+
+const helpers = () => ({ state, render, renderTopbar, openSheet, toast, errText, esc, giftImage, statusBadge, copy, haptic,
+  openView, switchTab, openTg, openLink });
+
 export function openOrder(id) {
   state.view = { name: 'order', id: Number(id) };
   render();
@@ -146,13 +165,21 @@ export async function render() {
   syncBackButton();
   const view = $('#view');
   if (state.view?.name === 'order') return orderView(view, state.view.id);
+  if (state.view?.name === 'guide') return guideView(view);
+  if (state.view) {
+    const mod = await import('./wallet.js');
+    const fn = { balance: mod.balanceView, topup: mod.topupView, referral: mod.referralView, top: mod.topView }[state.view.name];
+    if (fn) return fn(view, helpers(), state.view.id);
+  }
+  if (state.tab === 'stars') return (await import('./wallet.js')).starsView(view, helpers());
+  if (state.tab === 'catalog' && state.category !== 'gift') return otherCatalogView(view);
   if (state.tab === 'catalog') return state.segment === 'all' ? catalogView(view) : collectionsView(view);
   if (state.tab === 'rentals') return rentalsView(view);
   if (state.tab === 'guide') return guideView(view);
   if (state.tab === 'profile') return profileView(view);
   if (state.tab === 'admin') {
     const mod = await import('./admin.js');
-    return mod.adminView(view, { state, render, openSheet, toast, errText, esc, giftImage, statusBadge, copy });
+    return mod.adminView(view, helpers());
   }
 }
 
@@ -163,6 +190,77 @@ function banner() {
     <svg class="spark" style="right:18px;bottom:8px;width:10px" viewBox="0 0 10 10"><path d="M5 0l1.2 3.8L10 5 6.2 6.2 5 10 3.8 6.2 0 5l3.8-1.2z" fill="#fff"/></svg>
     <div><b>${esc(t('banner.title'))}</b><span>${esc(t('banner.subtitle'))} ›</span></div>
     <div class="banner-art">${art.card}</div></button>`;
+}
+
+function categoryTabs() {
+  return `<div class="cat-tabs">${['gift', 'username', 'number'].map(c =>
+    `<button class="${state.category === c ? 'active' : ''}" data-cat="${c}">${esc(t(`cat.${c}`))}</button>`).join('')}</div>`;
+}
+
+function bindCategoryTabs(view) {
+  view.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => {
+    if (state.category === b.dataset.cat) return;
+    state.category = b.dataset.cat; state.q = ''; state.other = null; haptic(); render();
+  });
+}
+
+function nameTile(g) {
+  const isNum = g.category === 'number';
+  let h = 0;
+  for (const c of g.name || '') h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const hue = isNum ? 150 + (h % 60) : 200 + (h % 80);
+  return `<div class="name-tile ${isNum ? 'num' : ''}" style="background:linear-gradient(140deg,hsl(${hue} 70% 48%),hsl(${(hue + 40) % 360} 70% 30%))">
+    ${isNum ? `<span class="tile-icon">${icons.phone}</span>` : ''}<b>${esc(g.name)}</b></div>`;
+}
+
+function otherCard(g) {
+  return `<button class="gift-card" data-gift="${esc(g.address)}">
+    <div class="gift-img">${nameTile(g)}</div>
+    <div class="gift-meta"><div class="gift-name">${esc(g.name)}</div>
+      <div class="gift-sub">${esc(t(`cat.${g.category}_one`))} · ${esc(t('catalog.days_range', { min: g.min_days, max: g.max_days }))}</div>
+      <div class="gift-price"><b>${g.per_day_uzs != null ? money(g.per_day_uzs) : esc(g.price_per_day_ton) + ' TON'}</b><span>${esc(t('catalog.per_day'))}</span></div></div>
+  </button>`;
+}
+
+async function loadOther(reset) {
+  const o = state.other || (state.other = { items: [], cursor: null, loaded: false, error: false });
+  if (reset) { o.items = []; o.cursor = null; o.loaded = false; }
+  o.error = false;
+  try {
+    const page = await api.gifts({ category: state.category, sort: state.sort, q: state.q, cursor: reset ? null : o.cursor });
+    o.items = reset ? page.items : o.items.concat(page.items);
+    o.cursor = page.cursor;
+  } catch { o.error = true; }
+  o.loaded = true;
+}
+
+async function otherCatalogView(view) {
+  const cat = state.category;
+  const draw = () => {
+    if (state.tab !== 'catalog' || state.category !== cat || state.view) return;
+    const o = state.other;
+    let body;
+    if (!o?.loaded) body = `<div class="grid">${'<div class="skeleton" style="aspect-ratio:.78"></div>'.repeat(6)}</div>`;
+    else if (o.error && !o.items.length) body = `<div class="empty"><p>${esc(t('catalog.error'))}</p><button class="btn secondary small" id="retry">${esc(t('common.retry'))}</button></div>`;
+    else if (!o.items.length) body = `<div class="empty"><div class="hero-art">${art.giftBox}</div>${esc(t(state.q ? 'catalog.no_results' : 'catalog.empty'))}</div>`;
+    else body = `<div class="grid">${o.items.map(otherCard).join('')}</div>`
+      + (o.cursor ? `<button class="btn secondary mt2" id="more">${esc(t('catalog.load_more'))}</button>` : '');
+    view.innerHTML = categoryTabs() + `<div class="toolbar"><div class="search grow-search">${icons.search}<input id="q" placeholder="${esc(t('catalog.search_name'))}" value="${esc(state.q)}"></div>
+      <button class="tool icon-only" id="open-sort" aria-label="${esc(t('catalog.sort_btn'))}">${icons.sort}</button></div>
+      <p class="note" style="margin-top:-4px">${esc(t('catalog.other_hint'))}</p>` + body;
+    bindCategoryTabs(view);
+    $('#open-sort', view).onclick = sortSheet;
+    const q = $('#q', view);
+    let timer;
+    q.oninput = () => { clearTimeout(timer); timer = setTimeout(async () => { state.q = q.value.trim(); state.other.loaded = false; await loadOther(true); draw(); const n = $('#q', view); n?.focus(); n?.setSelectionRange(n.value.length, n.value.length); }, 500); };
+    $('#retry', view)?.addEventListener('click', async () => { state.other.loaded = false; draw(); await loadOther(true); draw(); });
+    $('#more', view)?.addEventListener('click', async e => { e.target.disabled = true; await loadOther(false); draw(); });
+    view.querySelectorAll('[data-gift]').forEach(b => b.onclick = () => {
+      const g = state.other.items.find(x => x.address === b.dataset.gift); if (g) giftSheet(g);
+    });
+  };
+  draw();
+  if (!state.other?.loaded) { await loadOther(true); draw(); }
 }
 
 function giftCard(g) {
@@ -247,8 +345,9 @@ async function catalogView(view) {
     else if (!state.gifts.length) body = `<div class="empty"><div class="hero-art">${art.giftBox}</div>${esc(t(chips.length ? 'catalog.no_results' : 'catalog.empty'))}</div>`;
     else body = `<div class="grid">${state.gifts.map(giftCard).join('')}</div>`
       + (state.cursor ? `<button class="btn secondary mt2" id="more">${esc(t('catalog.load_more'))}</button>` : '');
-    view.innerHTML = banner() + toolbar + chipRow + body;
-    $('#banner', view).onclick = () => switchTab('guide');
+    view.innerHTML = categoryTabs() + banner() + toolbar + chipRow + body;
+    bindCategoryTabs(view);
+    $('#banner', view).onclick = () => openView('guide');
     $('#open-cols', view).onclick = collectionsSheet;
     $('#open-filters', view).onclick = filtersSheet;
     $('#open-sort', view).onclick = sortSheet;
@@ -281,11 +380,11 @@ function collectionRow(c, checkbox, checked) {
 
 async function collectionsView(view) {
   view.innerHTML = banner() + `<div class="list">${'<div class="skeleton" style="height:78px"></div>'.repeat(6)}</div>`;
-  $('#banner', view).onclick = () => switchTab('guide');
+  $('#banner', view).onclick = () => openView('guide');
   try { await ensureCollections(); } catch { view.innerHTML = banner() + `<div class="empty">${esc(t('catalog.error'))}</div>`; return; }
   if (state.tab !== 'catalog' || state.segment !== 'collections') return;
   view.innerHTML = banner() + `<div class="list">${state.collections.map(c => collectionRow(c, false)).join('')}</div>`;
-  $('#banner', view).onclick = () => switchTab('guide');
+  $('#banner', view).onclick = () => openView('guide');
   view.querySelectorAll('[data-col]').forEach(b => b.onclick = () => {
     const c = state.collections.find(x => x.address === b.dataset.col);
     state.filters.collections = [{ address: c.address, name: c.name }]; state.filters.model = ''; haptic(); applyFilters();
@@ -379,7 +478,10 @@ function sortSheet() {
   const html = `<h3>${esc(t('catalog.sort_btn'))}</h3><div class="mt">${SORTS.map(([v, k]) =>
     `<button class="radio-row ${state.sort === v ? 'active' : ''}" data-sort="${v}"><span class="radio"></span><div><b>${esc(t(k))}</b></div></button>`).join('')}</div>`;
   openSheet(html, (sheet, close) => {
-    sheet.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { state.sort = b.dataset.sort; haptic(); close(); applyFilters(); });
+    sheet.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => {
+      state.sort = b.dataset.sort; haptic(); close();
+      if (state.category !== 'gift') { state.other = null; render(); } else applyFilters();
+    });
   });
 }
 
@@ -396,8 +498,9 @@ function breakdown(perDay, days, fee, total, add = 0) {
 function giftSheet(g) {
   let days = Math.max(g.min_days, Math.min(g.max_days, 1));
   const attrs = [['gift.model', g.model], ['gift.backdrop', g.backdrop], ['gift.symbol', g.symbol]].filter(([, v]) => v);
+  const other = g.category && g.category !== 'gift';
   const html = `
-    <div class="gift-hero">${giftImage(g.image, g.name)}</div>
+    <div class="gift-hero">${other ? nameTile(g) : giftImage(g.image, g.name)}</div>
     <h3>${esc(g.name)}</h3>
     <div class="attrs">${attrs.map(([k, v]) => `<div class="attr"><span>${esc(t(k))}</span>${esc(v)}</div>`).join('')}</div>
     <div class="card" style="padding:14px">
@@ -408,7 +511,7 @@ function giftSheet(g) {
     </div>
     <div class="mt" id="bd"></div><p class="note center" id="ton" style="margin-top:6px"></p>
     <button class="btn mt" id="rent">${esc(t('gift.rent'))}</button>
-    <p class="note center">${esc(t('gift.how'))}</p>`;
+    <p class="note center">${esc(other ? t('catalog.other_hint') : t('gift.how'))}</p>`;
   openSheet(html, (sheet, close) => {
     let seq = 0;
     const quick = [1, 3, 7, 14, 30].filter(d => d >= g.min_days && d <= g.max_days);
@@ -464,8 +567,14 @@ function waiting(text) { return `<div class="card"><div class="waiting"><div cla
 
 function paymentCard(o) {
   const card = state.me?.card || {};
-  if (!card.number) return `<div class="card"><p class="note warn" style="margin:0">${esc(t('pay.no_card'))}</p></div>`;
-  return `<div class="card">
+  const bal = Number(state.me?.user?.balance_uzs || 0), price = o.amount_uzs - (o.unique_add_uzs || 0);
+  const balanceBox = `<div class="card pay-balance"><div class="kv" style="padding-top:0"><span>${esc(t('stars.your_balance'))}</span><b>${money(bal)}</b></div>
+    ${bal >= price ? `<button class="btn green mt" id="pay-balance">${esc(t('wallet.pay_balance', { amount: money(price) }))}</button>`
+      : `<p class="note warn">${esc(t('wallet.low', { amount: money(bal) }))}</p><button class="btn secondary" id="go-topup">${esc(t('wallet.topup'))}</button>`}
+    ${bal >= price ? '' : `<div class="or-line"><span>${esc(t('wallet.or_card'))}</span></div>`}</div>`;
+  if (!card.number) return balanceBox + `<div class="card"><p class="note warn" style="margin:0">${esc(t('pay.no_card'))}</p></div>`;
+  const wrap = html => (bal >= price ? `<details class="alt-way mt"><summary>${esc(t('wallet.or_card'))}</summary>${html}</details>` : html);
+  return balanceBox + wrap(`<div class="card">
     <div class="timer-label">${esc(t('pay.time_left'))}</div>
     <div class="timer" data-until="${esc(o.payment_expires_at)}">--:--</div>
     <div class="section-title" style="margin-top:12px">${esc(t('pay.title'))}</div>
@@ -477,10 +586,8 @@ function paymentCard(o) {
     ${card.bank ? `<div class="kv"><span>${esc(t('pay.bank'))}</span><b>${esc(card.bank)}</b></div>` : ''}
     <p class="note ${o.unique_add_uzs ? 'warn' : ''}">${esc(o.unique_add_uzs ? t('pay.unique', { add: o.unique_add_uzs }) : t('pay.exact'))}</p>
     ${state.me?.app?.auto_payments ? `<p class="note" style="color:#6fe39a">🤖 ${esc(t('pay.auto'))}</p>` : ''}
-    <label class="btn mt2" id="upload-label">${icons.upload.replace('<svg', '<svg width="20" height="20"')}<span>${esc(t('pay.upload'))}</span>
-      <input type="file" id="receipt" accept="image/*,application/pdf" hidden></label>
-    <p class="note center">${esc(t('pay.hint'))}</p>
-    <button class="btn ghost" id="cancel">${esc(t('pay.cancel'))}</button></div>`;
+    <div class="waiting"><div class="spinner"></div><p>${esc(t('wallet.waiting'))}</p></div></div>`)
+    + `<button class="btn ghost mt" id="cancel">${esc(t('pay.cancel'))}</button>`;
 }
 
 function linkCard(o, relink = false) {
@@ -491,6 +598,15 @@ function linkCard(o, relink = false) {
     <textarea class="input mt" id="tc-url" rows="3" placeholder="${esc(t('link.placeholder'))}"></textarea>
     <button class="btn mt" id="send-link">${esc(t('link.send'))}</button>
     <p class="note warn">${esc(t('link.note'))}</p></div>`;
+}
+
+function numberCard(o) {
+  return `<div class="card"><h3 style="margin:0 0 8px">${esc(t('number.title'))}</h3>
+    <div class="copy-line"><div><div class="label">${esc(t('cat.number_one'))}</div><div class="value">${esc(o.nft_name)}</div></div>
+      <button class="copy-btn" data-copy="${esc(o.nft_name.replace(/\s/g, ''))}">${esc(t('common.copy'))}</button></div>
+    <p class="note">${esc(t('number.text'))}</p>
+    <div id="code-box"></div>
+    <button class="btn mt" id="get-code">${icons.phone.replace('<svg', '<svg width="18" height="18"')} ${esc(t('number.get'))}</button></div>`;
 }
 
 function tgCard(o, again = false) {
@@ -552,7 +668,8 @@ async function orderView(view, id) {
   let o;
   try { o = await api.order(id); } catch (e) { view.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
   if (state.view?.id !== id) return;
-  const head = `<div class="card"><div class="order-head"><div class="thumb">${giftImage(o.image, o.nft_name)}</div>
+  const isGift = (o.category || 'gift') === 'gift';
+  const head = `<div class="card"><div class="order-head"><div class="thumb">${isGift ? giftImage(o.image, o.nft_name) : nameTile({ name: o.nft_name, category: o.category })}</div>
       <div><h3>${esc(o.nft_name)}</h3>${o.kind === 'extend' ? `<div class="sub muted" style="margin:-2px 0 6px;font-size:13px">${esc(t('ext.of', { id: o.parent_id }))}</div>` : ''}${statusBadge(o.status)}</div></div>${stepsHtml(o.status, o.kind)}
       <div class="kv mt" style="padding-bottom:4px"><span>${esc(t('order.period'))}</span><b>${o.days} ${esc(t('common.days'))}</b></div></div>
       <div class="mt">${breakdown(o.per_day_uzs, o.days, o.service_fee_uzs || 0, o.amount_uzs, o.unique_add_uzs || 0)}</div>`;
@@ -561,15 +678,17 @@ async function orderView(view, id) {
     case 'awaiting_payment': body = paymentCard(o); break;
     case 'payment_review': body = waiting(t('review.text')); break;
     case 'paid': case 'renting': body = waiting(t('renting.text')); break;
-    case 'awaiting_link': body = tgCard(o) + `<details class="alt-way mt"><summary>${esc(t('tgc.alt_title'))}</summary>${linkCard(o)}</details>`; break;
+    case 'awaiting_link': body = isGift ? tgCard(o) + `<details class="alt-way mt"><summary>${esc(t('tgc.alt_title'))}</summary>${linkCard(o)}</details>`
+      : `<p class="note">${esc(t('uname.text'))}</p>` + linkCard(o); break;
     case 'connecting': case 'connect_signing': body = waiting(t('connecting.text')); break;
     case 'active': body = `<div class="card"><h3 style="margin:0 0 8px">${esc(t('active.title'))}</h3>
         <div class="timer-label">${esc(t('active.left'))}</div><div class="timer" data-left-until="${esc(o.end_time)}">—</div>
         <div class="kv mt"><span>${esc(t('active.ends'))}</span><b>${esc(dateTime(o.end_time))}</b></div>
         <p class="note">${esc(t('active.hint'))}</p>
         <button class="btn green mt" id="extend-btn">${esc(t('ext.btn'))}</button>
-        </div><div class="mt">${tgCard(o, true)}</div>
-        <details class="alt-way mt"><summary>${esc(t('tgc.alt_title'))}</summary>${linkCard(o, true)}</details>`; break;
+        </div>` + (o.category === 'number' ? `<div class="mt">${numberCard(o)}</div>`
+          : isGift ? `<div class="mt">${tgCard(o, true)}</div><details class="alt-way mt"><summary>${esc(t('tgc.alt_title'))}</summary>${linkCard(o, true)}</details>`
+          : `<details class="alt-way mt"><summary>${esc(t('active.relink'))}</summary>${linkCard(o, true)}</details>`); break;
     default: body = `<div class="card center"><p style="margin:0;line-height:1.5">${esc(t(`final.${o.status}`))}</p>
         ${o.kind === 'extend' && o.parent_id ? `<button class="btn mt" id="open-parent">${esc(t('notify.open'))} #${o.parent_id}</button>` : ''}
         <button class="btn secondary mt" id="browse">${esc(t('rentals.browse'))}</button></div>`;
@@ -597,6 +716,22 @@ function bindOrder(view, o) {
   $('#browse', view)?.addEventListener('click', () => switchTab('catalog'));
   $('#open-parent', view)?.addEventListener('click', () => openOrder(o.parent_id));
   $('#extend-btn', view)?.addEventListener('click', () => extendSheet(o));
+  $('#go-topup', view)?.addEventListener('click', () => openView('balance'));
+  $('#pay-balance', view)?.addEventListener('click', async e => {
+    e.target.disabled = true;
+    try { await api.payBalance(o.id); haptic('medium'); state.me = await api.me(); state.orders = null; render(); }
+    catch (err) { toast(errText(err), true); e.target.disabled = false; }
+  });
+  $('#get-code', view)?.addEventListener('click', async e => {
+    e.target.disabled = true;
+    try {
+      const r = await api.loginCode(o.id);
+      $('#code-box', view).innerHTML = `<div class="code-show"><span>${esc(t('number.code'))}</span><b>${esc(r.code)}</b></div>`;
+      $('#code-box', view).onclick = () => copy(r.code);
+      e.target.textContent = t('number.again');
+    } catch (err) { toast(errText(err), true); }
+    e.target.disabled = false;
+  });
   if (state.autoExtend === o.id && o.status === 'active') { state.autoExtend = null; extendSheet(o); }
   $('#cancel', view)?.addEventListener('click', () => {
     const run = async () => { try { await api.cancel(o.id); state.orders = null; render(); } catch (e) { toast(errText(e), true); } };
@@ -672,7 +807,7 @@ async function rentalsView(view) {
     $('#browse', view).onclick = () => switchTab('catalog');
     return;
   }
-  const row = o => `<button class="row-card" data-order="${o.id}"><div class="thumb">${giftImage(o.image, o.nft_name)}</div>
+  const row = o => `<button class="row-card" data-order="${o.id}"><div class="thumb">${(o.category || 'gift') === 'gift' ? giftImage(o.image, o.nft_name) : nameTile({ name: o.nft_name, category: o.category })}</div>
     <div class="grow"><div class="title">${esc(o.nft_name)}</div><div class="sub">#${o.id}${o.kind === 'extend' ? ` · +${esc(t('ext.label'))}` : ''} · ${o.days} ${esc(t('common.days'))} · ${money(o.amount_uzs)}</div>
     <div style="margin-top:6px">${statusBadge(o.status)}</div></div><span class="chev">${icons.chevronRight}</span></button>`;
   const open = state.orders.filter(o => !FINAL.has(o.status)), past = state.orders.filter(o => FINAL.has(o.status));
@@ -692,27 +827,39 @@ function guideView(view) {
   $('#go', view).onclick = () => switchTab('catalog');
 }
 
+
 // ------------------------------------------------------------------ profile
 function profileView(view) {
   const { user, app, rentals } = state.me;
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'User';
   const row = (id, color, icon, label, value = '') => `<button class="menu-row" data-row="${id}"><span class="menu-icon" style="background:${color}">${icon}</span>
     <span class="label">${esc(label)}</span><span class="value">${esc(value)}</span><span class="chev">${icons.chevronRight}</span></button>`;
-  view.innerHTML = `<div class="profile-head">${avatarHtml(user)}<h2>${esc(name)}</h2>${user.username ? `<p>@${esc(user.username)}</p>` : ''}</div>
+  const tile = (id, cls, icon, title, sub) => `<button class="p-tile ${cls}" data-row="${id}"><span class="p-ico">${icon.replace('<svg', '<svg width="20" height="20"')}</span>
+    <b>${esc(title)}</b><small>${esc(sub)}</small></button>`;
+  view.innerHTML = `<div class="p-card">
+      ${avatarHtml(user)}<h2>${esc(name)}</h2>${user.username ? `<span class="p-user">● @${esc(user.username)}</span>` : ''}
+      <div class="p-stats"><button class="p-stat" data-row="balance"><b>${esc(Number(user.balance_uzs || 0).toLocaleString('ru-RU'))}</b><span>${esc(t('profile.balance'))}</span></button>
+        <button class="p-stat" data-row="rentals"><b>${rentals}</b><span>${esc(t('profile.active'))}</span></button></div>
+      <button class="btn mt" data-row="topup">${icons.plus.replace('<svg', '<svg width="18" height="18"')} ${esc(t('profile.topup'))}</button></div>
+    ${app.support ? `<button class="p-chat" data-row="support"><span class="p-ico">${icons.chat.replace('<svg', '<svg width="22" height="22"')}</span>
+      <div><b>${esc(t('profile.chat'))}</b><small>${esc(t('profile.chat_d'))}</small></div><span class="chev">${icons.chevronRight}</span></button>` : ''}
+    <div class="p-tiles">${tile('referral', 'violet', icons.users, t('profile.referral'), t('profile.referral_d'))}
+      ${tile('premium', 'sunset', icons.star, t('profile.premium'), t('profile.premium_d'))}</div>
     <div class="menu">
+      ${row('rentals', 'var(--green-1)', icons.key, t('nav.rentals'), String(rentals))}
+      ${row('top', '#e0a400', icons.trophy, t('profile.top'))}
+      ${row('guide', 'var(--blue)', icons.book, t('profile.guide'))}
       ${row('lang', 'var(--purple)', icons.globe, t('profile.lang'), t('lang.name'))}
-      ${row('payment', 'var(--blue)', icons.card, t('profile.payment'), t('profile.payment_value'))}
-      ${app.support ? row('support', 'var(--orange)', icons.chat, t('profile.support'), '@' + app.support) : ''}
       ${app.channel ? row('channel', '#e0a400', icons.bell, t('profile.channel'), '@' + app.channel) : ''}
-    </div>
-    <div class="menu">
-      ${row('rentals', 'var(--green-1)', icons.key, t('profile.rentals'), String(rentals))}
       ${app.offer_url ? row('offer', '#3f9d6b', icons.doc, t('profile.offer')) : ''}
     </div>
+    <p class="center muted" style="font-size:12px;line-height:1.5;padding:0 10px">${esc(t('profile.safe_note'))}</p>
     <p class="center muted" style="font-size:12px">${esc(app.name)}</p>`;
   const actions = {
-    lang: langSheet, payment: () => switchTab('guide'), support: () => openTg(app.support), channel: () => openTg(app.channel),
-    rentals: () => switchTab('rentals'), offer: () => openLink(app.offer_url),
+    lang: langSheet, support: () => openTg(app.support), channel: () => openTg(app.channel),
+    rentals: () => switchTab('rentals'), offer: () => openLink(app.offer_url), balance: () => openView('balance'),
+    topup: () => openView('balance'), referral: () => openView('referral'), top: () => openView('top'),
+    guide: () => openView('guide'), premium: () => { state.starsSeg = 'premium'; switchTab('stars'); },
   };
   view.querySelectorAll('[data-row]').forEach(b => b.onclick = () => actions[b.dataset.row]?.());
 }
@@ -763,6 +910,7 @@ async function boot() {
   await loadLang(state.me.user.lang);
   document.title = state.me.app.name;
   if (params.get('admin') && state.me.user.is_admin) state.tab = 'admin';
+  else if (['balance', 'referral', 'top'].includes(params.get('tab'))) state.view = { name: params.get('tab') };
   else if (params.get('tab')) state.tab = params.get('tab');
   const orderId = params.get('order') || (startParam.startsWith('order_') ? startParam.slice(6) : '');
   if (orderId && state.tab !== 'admin') state.view = { name: 'order', id: Number(orderId) };

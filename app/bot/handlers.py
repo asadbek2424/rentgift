@@ -44,6 +44,13 @@ async def send_welcome(message: Message, lang: str, name: str) -> None:
 @router.message(CommandStart())
 async def start(message: Message) -> None:
     user, is_new = await _ensure_user(message)
+    arg = (message.text or "").partition(" ")[2].strip()
+    if arg.startswith("ref_") and arg[4:].isdigit():
+        from ..wallet import set_referrer
+        if await set_referrer(user.id, int(arg[4:])):
+            notify = getattr(get_context().notifier, "user_text", None)
+            if notify:
+                await notify(int(arg[4:]), "ref_joined", name=message.from_user.first_name or "👤")
     if is_new:
         await svc.set_lang(user.id, guess_lang(message.from_user.language_code, get_settings().default_lang))
         await message.answer(t(await user_lang(user.id), "bot.choose_lang"), reply_markup=lang_keyboard())

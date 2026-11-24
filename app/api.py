@@ -16,6 +16,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from . import orders as svc
+from . import purchases as shop
+from . import wallet
 from .context import get_context
 from .db import Order, OrderStatus as S, Session, User, get_setting, set_setting
 from .i18n import LANGS, guess_lang
@@ -94,12 +96,16 @@ async def me(user: CurrentUser = Depends(current_user)):
                 "holder": await get_setting(session, "card_holder", s.card_holder),
                 "bank": await get_setting(session, "card_bank", s.card_bank)}
         db_user = await session.get(User, user.id)
+    from . import userbot
     return {"user": {**user.model_dump(), "tg_display_ready": bool(db_user and db_user.tg_display_ready),
-                     "tg_display_name": db_user.tg_display_name if db_user else ""},
+                     "tg_display_name": db_user.tg_display_name if db_user else "",
+                     "balance_uzs": int(db_user.balance_uzs or 0) if db_user else 0,
+                     "spent_uzs": int(db_user.spent_uzs or 0) if db_user else 0},
             "rentals": rentals, "card": card,
             "app": {"name": s.app_name, "support": s.support_username, "channel": s.channel_username,
                     "offer_url": s.offer_url, "langs": list(LANGS), "bot_username": ctx.bot_username,
-                    "auto_payments": bool(s.auto_confirm_payments and s.userbot_session and s.userbot_api_id), "wallet_mode": s.wallet_mode,
+                    "auto_payments": bool(s.auto_confirm_payments and userbot.status.get("state") == "on"),
+                    "wallet_mode": s.wallet_mode, "topup_min": s.topup_min_uzs, "topup_max": s.topup_max_uzs,
                     "admin_wallet": s.admin_wallet_address if user.is_admin else "",
                     "admin_wallet_raw": _raw(s.admin_wallet_address) if user.is_admin else "", "demo": s.demo_mode,
                     "manifest_url": f"{s.webapp_base}/tonconnect-manifest.json"}}
@@ -185,11 +191,45 @@ def _encode_cursor(state: dict) -> str:
 _END = "__end__"
 
 
+async def _other_category(category: str, sort: str, cursor: str | None, q: str | None) -> dict:
+    """Usernames / anonymous numbers: Marketapp pages + an optional text filter on the current page set."""
+    ctx = get_context()
+    try:
+        config = await pricing_config(ctx.rates)
+    except RateUnavailable:
+        config = None
+    needle = (q or "").strip().lower().lstrip("@").replace(" ", "").replace("+", "")
+    collected, next_cursor = [], cursor
+    try:
+        for _ in range(5 if needle else 1):
+            page = await ctx.market.rent_list(category, cursor=next_cursor, sort_by=sort, limit=50 if needle else 20)
+            next_cursor = page.get("cursor")
+            for item in page.get("items") or []:
+                name = str(item.get("nft_name") or "").lower().replace(" ", "").replace("+", "").lstrip("@")
+                if not needle or needle in name:
+                    collected.append(item)
+            if not next_cursor or len(collected) >= 20:
+                break
+    except MarketappError:
+        if not collected:
+            raise HTTPException(503, detail={"code": "marketapp"}) from None
+    cards = []
+    for item in collected:
+        card = gift_card(item, config)
+        card.update({"category": category, "image": "", "collection": card["name"], "number": ""})
+        if card["rentable"]:
+            cards.append(card)
+    return {"items": cards, "cursor": next_cursor, "priced": config is not None}
+
+
 @router.get("/gifts")
 async def gifts(collections: str | None = None, collection: str | None = None, sort: str = "recently_touch",
                 cursor: str | None = None, model: str | None = None, backdrop: str | None = None, symbol: str | None = None,
                 price_min: Decimal | None = None, price_max: Decimal | None = None,
-                num_min: int | None = None, num_max: int | None = None, user: CurrentUser = Depends(current_user)):
+                num_min: int | None = None, num_max: int | None = None, category: str = "gift", q: str | None = None,
+                user: CurrentUser = Depends(current_user)):
+    if category in ("username", "number"):
+        return await _other_category(category, sort, cursor, q)
     """Catalogue with Marketapp filters (collection, model, backdrop, symbol, sort) plus local filters
     (price in so'm/day, item number). Several collections are merged; the cursor keeps one position per collection."""
     ctx = get_context()
@@ -382,6 +422,141 @@ async def tg_status(order_id: int, user: CurrentUser = Depends(current_user)):
 
 
 # ---------------------------------------------------------------------------- admin
+def _wallet_error(exc) -> HTTPException:
+    return HTTPException(exc.status, detail={"code": exc.code, "detail": exc.detail})
+
+
+@router.post("/orders/{order_id}/pay-balance")
+async def pay_balance(order_id: int, user: CurrentUser = Depends(current_user)):
+    try:
+        return svc.order_view(await svc.pay_from_balance(get_context(), user.id, order_id))
+    except svc.ServiceError as exc:
+        raise _error(exc) from None
+
+
+@router.get("/orders/{order_id}/login-code")
+async def number_login_code(order_id: int, user: CurrentUser = Depends(current_user)):
+    try:
+        return await svc.login_code(get_context(), user.id, order_id)
+    except svc.ServiceError as exc:
+        raise _error(exc) from None
+
+
+# ---------------------------------------------------------------------------- balance
+@router.get("/balance")
+async def balance(user: CurrentUser = Depends(current_user)):
+    topups = await wallet.list_topups(user.id, limit=20)
+    return {"balance_uzs": await wallet.balance_of(user.id), "history": await wallet.history(user.id),
+            "topups": [wallet.topup_view(t) for t in topups]}
+
+
+class TopupBody(BaseModel):
+    amount: int = Field(ge=1, le=1_000_000_000)
+
+
+@router.post("/topups")
+async def create_topup(body: TopupBody, user: CurrentUser = Depends(current_user)):
+    try:
+        return wallet.topup_view(await wallet.create_topup(get_context(), user.id, body.amount))
+    except wallet.WalletError as exc:
+        raise _wallet_error(exc) from None
+
+
+@router.get("/topups/{topup_id}")
+async def one_topup(topup_id: int, user: CurrentUser = Depends(current_user)):
+    try:
+        return wallet.topup_view(await wallet.get_topup(topup_id, None if user.is_admin else user.id))
+    except wallet.WalletError as exc:
+        raise _wallet_error(exc) from None
+
+
+@router.post("/topups/{topup_id}/cancel")
+async def cancel_topup(topup_id: int, user: CurrentUser = Depends(current_user)):
+    try:
+        return wallet.topup_view(await wallet.cancel_topup(user.id, topup_id))
+    except wallet.WalletError as exc:
+        raise _wallet_error(exc) from None
+
+
+# ---------------------------------------------------------------------------- Stars / Premium
+def _shop_error(exc) -> HTTPException:
+    return HTTPException(exc.status, detail={"code": exc.code, "detail": exc.detail})
+
+
+@router.get("/stars")
+async def stars_info(user: CurrentUser = Depends(current_user)):
+    try:
+        return await shop.stars_info(get_context())
+    except shop.PurchaseError as exc:
+        raise _shop_error(exc) from None
+
+
+@router.get("/stars/quote")
+async def stars_quote(quantity: int, user: CurrentUser = Depends(current_user)):
+    try:
+        quote = await shop.stars_quote(get_context(), quantity)
+        return {"quantity": quote["quantity"], "price_uzs": quote["price_uzs"]}
+    except shop.PurchaseError as exc:
+        raise _shop_error(exc) from None
+
+
+@router.get("/premium")
+async def premium_info(user: CurrentUser = Depends(current_user)):
+    try:
+        info = await shop.premium_info(get_context())
+        return {"plans": [{"months": p["months"], "price_uzs": p["price_uzs"]} for p in info["plans"]]}
+    except shop.PurchaseError as exc:
+        raise _shop_error(exc) from None
+
+
+class RecipientBody(BaseModel):
+    kind: str = Field(pattern="^(stars|premium)$")
+    username: str = Field(max_length=80)
+
+
+@router.post("/recipient")
+async def check_recipient(body: RecipientBody, user: CurrentUser = Depends(current_user)):
+    try:
+        return await shop.recipient(get_context(), body.kind, body.username)
+    except shop.PurchaseError as exc:
+        raise _shop_error(exc) from None
+
+
+class PurchaseBody(BaseModel):
+    kind: str = Field(pattern="^(stars|premium)$")
+    username: str = Field(max_length=80)
+    quantity: int = Field(ge=1, le=1_000_000)
+
+
+@router.post("/purchases")
+async def create_purchase(body: PurchaseBody, user: CurrentUser = Depends(current_user)):
+    try:
+        return shop.purchase_view(await shop.buy(get_context(), user.id, body.kind, body.username, body.quantity))
+    except shop.PurchaseError as exc:
+        raise _shop_error(exc) from None
+
+
+@router.get("/purchases")
+async def my_purchases(user: CurrentUser = Depends(current_user)):
+    return {"items": [shop.purchase_view(p) for p in await shop.list_purchases(user.id, limit=30)]}
+
+
+# ---------------------------------------------------------------------------- referral / rating
+@router.get("/referral")
+async def referral(user: CurrentUser = Depends(current_user)):
+    ctx = get_context()
+    info = await wallet.referral_info(user.id)
+    async with Session() as session:
+        percent = await get_setting(session, "referral_percent", str(ctx.settings.referral_percent))
+    link = f"https://t.me/{ctx.bot_username}?start=ref_{user.id}" if ctx.bot_username else ""
+    return {**info, "percent": percent, "link": link}
+
+
+@router.get("/top")
+async def top(user: CurrentUser = Depends(current_user)):
+    return await wallet.top_rating(user.id)
+
+
 ADMIN_FILTERS = {
     "review": {S.PAYMENT_REVIEW}, "paid": {S.PAID}, "sign": {S.CONNECT_SIGNING, S.RENTING},
     "active": {S.AWAITING_LINK, S.CONNECTING, S.ACTIVE}, "problem": {S.FAILED}, "all": set(S.ALL),
@@ -409,6 +584,7 @@ async def admin_stats(admin: CurrentUser = Depends(admin_user)):
                                                         func.coalesce(func.sum(Order.profit_uzs), 0))
                                                  .where(Order.status.in_(done)))).one()
         users = (await session.execute(select(func.count(User.id)))).scalar_one()
+        balances = (await session.execute(select(func.coalesce(func.sum(User.balance_uzs), 0)))).scalar_one()
         g = lambda key, default: get_setting(session, key, str(default))
         settings = {"markup_percent": await g("markup_percent", s.markup_percent),
                     "fee_percent": await g("fee_percent", s.marketapp_fee_percent),
@@ -420,7 +596,10 @@ async def admin_stats(admin: CurrentUser = Depends(admin_user)):
                     "manual_rate": await g("manual_rate", s.manual_rate_uzs_per_ton),
                     "card_number": await g("card_number", s.card_number),
                     "card_holder": await g("card_holder", s.card_holder),
-                    "card_bank": await g("card_bank", s.card_bank)}
+                    "card_bank": await g("card_bank", s.card_bank),
+                    "stars_markup_percent": await g("stars_markup_percent", s.stars_markup_percent),
+                    "premium_markup_percent": await g("premium_markup_percent", s.premium_markup_percent),
+                    "referral_percent": await g("referral_percent", s.referral_percent)}
         observed = await get_setting(session, "observed_fee_percent", None)
     try:
         config = await pricing_config(ctx.rates)
@@ -428,7 +607,12 @@ async def admin_stats(admin: CurrentUser = Depends(admin_user)):
         uzs_per_usd = str(config.uzs_per_usd.quantize(Decimal("0.01"))) if config.uzs_per_usd else None
     except RateUnavailable:
         rate = uzs_per_usd = None
+    hot_balance = None
+    if ctx.hot_wallet is not None:
+        nano = await ctx.hot_wallet.balance_nano()
+        hot_balance = ton_text(nano) if nano is not None else None
     return {"revenue_uzs": int(revenue), "profit_uzs": int(profit), "users": users, "rate": rate,
+            "balances_uzs": int(balances), "hot_balance": hot_balance,
             "uzs_per_usd": uzs_per_usd, "observed_fee_percent": observed, "settings": settings,
             "wallet_mode": s.wallet_mode, "admin_wallet": s.admin_wallet_address}
 
@@ -445,9 +629,12 @@ class SettingsBody(BaseModel):
     card_number: str | None = None
     card_holder: str | None = None
     card_bank: str | None = None
+    stars_markup_percent: str | None = None
+    premium_markup_percent: str | None = None
+    referral_percent: str | None = None
 
 
-_LIMITS = {"markup_percent": (0, 1000), "fee_percent": (0, 100), "profit_fixed_uzs": (0, 100_000_000),
+_LIMITS = {"stars_markup_percent": (0, 500), "premium_markup_percent": (0, 500), "referral_percent": (0, 50),"markup_percent": (0, 1000), "fee_percent": (0, 100), "profit_fixed_uzs": (0, 100_000_000),
            "service_fee_uzs": (0, 100_000_000), "min_rent_days": (1, 180),
            "round_to": (1, 100_000), "manual_rate": (0, 10_000_000_000)}
 
@@ -490,6 +677,78 @@ router.post("/admin/orders/{order_id}/reject-payment")(_admin_action(svc.reject_
 router.post("/admin/orders/{order_id}/cancel")(_admin_action(svc.admin_cancel))
 router.post("/admin/orders/{order_id}/refunded")(_admin_action(svc.mark_refunded))
 router.post("/admin/orders/{order_id}/retry")(_admin_action(svc.retry))
+router.post("/admin/orders/{order_id}/tobalance")(_admin_action(svc.refund_to_balance))
+
+
+async def _user_brief(user_id: int) -> dict:
+    async with Session() as session:
+        u = await session.get(User, user_id)
+    return {"id": user_id, "name": f"{u.first_name} {u.last_name}".strip() if u else "", "username": u.username if u else "",
+            "balance_uzs": int(u.balance_uzs or 0) if u else 0}
+
+
+@router.get("/admin/topups")
+async def admin_topups(filter: str = "open", admin: CurrentUser = Depends(admin_user)):
+    from .db import TopupStatus as T
+    rows = await wallet.list_topups(statuses=T.OPEN if filter == "open" else None, limit=100)
+    return {"items": [{**wallet.topup_view(t), "user": await _user_brief(t.user_id)} for t in rows]}
+
+
+@router.post("/admin/topups/{topup_id}/{action}")
+async def admin_topup_action(topup_id: int, action: str, admin: CurrentUser = Depends(admin_user)):
+    ctx = get_context()
+    try:
+        if action == "confirm":
+            topup = await wallet.confirm_topup(ctx, topup_id, f"admin:{admin.id}", late=True)
+        elif action == "reject":
+            topup = await wallet.reject_topup(ctx, topup_id, f"admin:{admin.id}")
+        else:
+            raise HTTPException(404, detail={"code": "generic"})
+    except wallet.WalletError as exc:
+        raise _wallet_error(exc) from None
+    return wallet.topup_view(topup)
+
+
+@router.get("/admin/purchases")
+async def admin_purchases(filter: str = "open", admin: CurrentUser = Depends(admin_user)):
+    from .db import PurchaseStatus as P
+    statuses = {P.PENDING, P.SIGNING, P.SENT, P.FAILED} if filter == "open" else None
+    rows = await shop.list_purchases(statuses=statuses, limit=100)
+    return {"items": [{**shop.purchase_view(p, admin=True), "user": await _user_brief(p.user_id)} for p in rows]}
+
+
+@router.post("/admin/purchases/{purchase_id}/{action}")
+async def admin_purchase_action(purchase_id: int, action: str, body: dict | None = None,
+                                admin: CurrentUser = Depends(admin_user)):
+    ctx = get_context()
+    try:
+        if action == "retry":
+            p = await shop.admin_retry(ctx, purchase_id)
+        elif action == "refund":
+            p = await shop.admin_refund(ctx, purchase_id)
+        elif action == "done":
+            p = await shop.admin_done(ctx, purchase_id)
+        elif action == "prepare-tx":
+            return await shop.prepare_tx(purchase_id)
+        elif action == "tx-sent":
+            p = await shop.tx_sent(ctx, purchase_id, str((body or {}).get("boc") or ""))
+        else:
+            raise HTTPException(404, detail={"code": "generic"})
+    except shop.PurchaseError as exc:
+        raise _shop_error(exc) from None
+    return shop.purchase_view(p, admin=True)
+
+
+class BalanceBody(BaseModel):
+    delta: int = Field(ge=-1_000_000_000, le=1_000_000_000)
+
+
+@router.post("/admin/users/{user_id}/balance")
+async def admin_balance(user_id: int, body: BalanceBody, admin: CurrentUser = Depends(admin_user)):
+    try:
+        return {"balance_uzs": await wallet.admin_adjust(user_id, body.delta, admin.id)}
+    except wallet.WalletError as exc:
+        raise _wallet_error(exc) from None
 
 
 @router.post("/admin/orders/{order_id}/prepare-tx")

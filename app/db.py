@@ -33,6 +33,10 @@ class User(Base):
     tg_display_ready: Mapped[bool] = mapped_column(Boolean, default=False)   # connected via /v1/rent/tg/connect/
     tg_display_name: Mapped[str] = mapped_column(String(128), default="")
     bot_blocked: Mapped[bool] = mapped_column(Boolean, default=False)   # user blocked the bot (broadcast skips)
+    balance_uzs: Mapped[int] = mapped_column(BigInteger, default=0)      # prepaid so'm (top-ups, refunds, referral)
+    spent_uzs: Mapped[int] = mapped_column(BigInteger, default=0)        # paid rentals + purchases (top rating)
+    referrer_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    ref_earned_uzs: Mapped[int] = mapped_column(BigInteger, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -68,6 +72,8 @@ class Order(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), index=True)
     status: Mapped[str] = mapped_column(String(24), index=True, default=OrderStatus.AWAITING_PAYMENT)
     kind: Mapped[str] = mapped_column(String(8), default="rent")          # rent | extend
+    category: Mapped[str] = mapped_column(String(10), default="gift")     # gift | username | number
+    paid_by: Mapped[str] = mapped_column(String(8), default="card")       # card | balance
     parent_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # extension → the rental it extends
     prev_end_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -145,6 +151,82 @@ class PaymentNotice(Base):
     order_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     result: Mapped[str] = mapped_column(String(24), default="")         # matched | unmatched | ambiguous | ignored
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TopupStatus:
+    PENDING = "pending"        # waiting for the card transfer
+    REVIEW = "review"          # receipt uploaded, admin checks it
+    PAID = "paid"              # credited to the balance
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+    REJECTED = "rejected"
+    OPEN = frozenset({PENDING, REVIEW})
+
+
+class Topup(Base):
+    """Balance top-up by card transfer (unique amount → matched by the CardXabar notice, or a receipt)."""
+    __tablename__ = "topups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), index=True)
+    status: Mapped[str] = mapped_column(String(12), index=True, default=TopupStatus.PENDING)
+    base_uzs: Mapped[int] = mapped_column(BigInteger)                    # what the user asked for
+    unique_add_uzs: Mapped[int] = mapped_column(Integer, default=0)
+    amount_uzs: Mapped[int] = mapped_column(BigInteger, index=True)      # what he must transfer (= credited)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    receipt_file_id: Mapped[str] = mapped_column(String(256), default="")
+    receipt_kind: Mapped[str] = mapped_column(String(16), default="")
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    actor: Mapped[str] = mapped_column(String(32), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Ledger(Base):
+    """Every balance movement (+ credit, − debit)."""
+    __tablename__ = "ledger"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    delta_uzs: Mapped[int] = mapped_column(BigInteger)
+    balance_after: Mapped[int] = mapped_column(BigInteger, default=0)
+    kind: Mapped[str] = mapped_column(String(16))     # topup | order | purchase | refund | referral | admin
+    ref_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    note: Mapped[str] = mapped_column(String(256), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PurchaseStatus:
+    PENDING = "pending"        # paid from the balance, Marketapp transaction not prepared yet
+    SIGNING = "signing"        # transaction ready; admin wallet must sign (TON Connect mode)
+    SENT = "sent"              # broadcast, waiting for the wallet seqno to move
+    DONE = "done"
+    FAILED = "failed"          # needs admin attention
+    REFUNDED = "refunded"
+    OPEN = frozenset({PENDING, SIGNING, SENT})
+
+
+class Purchase(Base):
+    """Telegram Stars / Premium bought through Marketapp (Fragment) for a username, paid from the balance."""
+    __tablename__ = "purchases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(8))                  # stars | premium
+    recipient: Mapped[str] = mapped_column(String(64))            # username without @
+    recipient_name: Mapped[str] = mapped_column(String(128), default="")
+    quantity: Mapped[int] = mapped_column(Integer)                # stars count or premium months
+    price_uzs: Mapped[int] = mapped_column(BigInteger)
+    cost_nano: Mapped[str] = mapped_column(String(40), default="0")
+    rate_uzs_per_ton: Mapped[str] = mapped_column(String(40), default="0")
+    status: Mapped[str] = mapped_column(String(12), index=True, default=PurchaseStatus.PENDING)
+    tx_json: Mapped[str] = mapped_column(Text, default="")
+    tx_boc: Mapped[str] = mapped_column(Text, default="")
+    seqno_before: Mapped[int] = mapped_column(Integer, default=-1)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error: Mapped[str] = mapped_column(String(256), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class Setting(Base):

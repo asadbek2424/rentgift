@@ -32,13 +32,60 @@ def admin_buttons(order: Order, preset: str | None, lang: str) -> InlineKeyboard
     if preset == "late":
         return markup([cb("btn_late_confirm", "latepay")], [cb("btn_refunded", "refund")])
     if preset == "failed":
-        return markup([cb("btn_retry", "retry"), cb("btn_refunded", "refund")], [cb("btn_cancel", "cancel")])
+        return markup([cb("btn_retry", "retry"), cb("btn_refunded", "refund")],
+                      [cb("btn_tobalance", "tobalance"), cb("btn_cancel", "cancel")])
     return None
 
 
 class BotNotifier:
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
+
+    async def _send(self, chat_id: int, text: str, keyboard=None) -> None:
+        try:
+            await self.bot.send_message(chat_id, text, reply_markup=keyboard)
+        except TelegramForbiddenError:
+            async with Session() as session:
+                user = await session.get(User, chat_id)
+                if user:
+                    user.bot_blocked = True
+                    await session.commit()
+        except TelegramAPIError as exc:
+            log.warning("Cannot message %s: %s", chat_id, exc)
+
+    async def user_text(self, user_id: int, key: str, tab: str | None = None, **params) -> None:
+        """Balance / Stars / referral messages (not tied to an order)."""
+        lang = await user_lang(user_id)
+        values = {k: fmt_sum(v) if k in ("amount", "balance") and isinstance(v, int) else v for k, v in params.items()}
+        button = webapp_button(t(lang, "notify.open_app"), tab=tab) if tab else None
+        await self._send(user_id, t(lang, f"wallet.{key}", **values), markup([button]) if button else None)
+
+    async def admin_topup(self, topup, key: str, **params) -> None:
+        async with Session() as session:
+            customer = await session.get(User, topup.user_id)
+        who = (f"{customer.first_name} {customer.last_name}".strip() if customer else str(topup.user_id)) + \
+            (f" (@{customer.username})" if customer and customer.username else "") + f" · id {topup.user_id}"
+        for admin_id in get_settings().admin_ids:
+            lang = await user_lang(admin_id)
+            keyboard = None
+            if key in ("topup_check", "topup_late"):
+                keyboard = markup([InlineKeyboardButton(text=t(lang, "admin.btn_credit"), callback_data=f"t:confirm:{topup.id}"),
+                                   InlineKeyboardButton(text=t(lang, "admin.btn_reject"), callback_data=f"t:reject:{topup.id}")])
+            await self._send(admin_id, t(lang, f"admin.{key}", id=topup.id, user=who, amount=fmt_sum(int(topup.amount_uzs)),
+                                         **params), keyboard)
+
+    async def admin_purchase(self, purchase, key: str, error: str = "") -> None:
+        what = f"{purchase.quantity} ⭐ Stars" if purchase.kind == "stars" else f"Premium {purchase.quantity}"
+        for admin_id in get_settings().admin_ids:
+            lang = await user_lang(admin_id)
+            cb = lambda k, a: InlineKeyboardButton(text=t(lang, f"admin.{k}"), callback_data=f"p:{a}:{purchase.id}")
+            if key == "purchase_sign":
+                keyboard = markup([webapp_button(t(lang, "admin.btn_sign"), admin=1)], [cb("btn_refunded", "refund")])
+            else:
+                keyboard = markup([cb("btn_retry", "retry"), cb("btn_refunded", "refund")], [cb("btn_mark_done", "done")])
+            await self._send(admin_id, t(lang, f"admin.{key}", id=purchase.id, what=what, to=purchase.recipient,
+                                         amount=fmt_sum(int(purchase.price_uzs)), user=purchase.user_id, error=error),
+                             keyboard)
 
     def _params(self, order: Order, lang: str, extra: dict) -> dict:
         name = order.nft_name + (f" (+{t(lang, 'ext.label')})" if getattr(order, "kind", "rent") == "extend" else "")

@@ -26,10 +26,20 @@ export const icons = {
   search: s('<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>'),
   telegram: s('<path d="M21 4 3 11l6 2.5M21 4l-3 16-9-6.5M21 4 9 13.5V19l3-3"/>'),
   star: s('<path d="M12 3.5 14.6 9l6 .7-4.4 4.1 1.2 5.9L12 16.8l-5.4 2.9 1.2-5.9L3.4 9.7l6-.7L12 3.5Z"/>'),
+  bolt: s('<path d="M13 3 5 13.5h6L10 21l8-10.5h-6L13 3Z"/>'),
+  users: s('<circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 5.2a3.4 3.4 0 0 1 0 6.6M18 14.3c2.1.7 3.5 2.7 3.5 5.7"/>'),
+  trophy: s('<path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20.5h7M10 17h4v3.5h-4z"/>'),
+  phone: s('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/>'),
+  plus: s('<path d="M12 5v14M5 12h14"/>', 'stroke-width="2.4"'),
 };
 
 // Original illustrations (not copied from anywhere).
 export const art = {
+  star: `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><defs>
+    <linearGradient id="sg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe680"/><stop offset=".55" stop-color="#ffc21a"/><stop offset="1" stop-color="#f08c00"/></linearGradient></defs>
+    <path d="M86 26c8 4 12 10 13 17M94 20c9 6 13 13 14 21" stroke="#ffd34d" stroke-width="5" stroke-linecap="round" fill="none" opacity=".8"/>
+    <path d="M58 14l12.4 26.2 28.6 3.4-21 19.8 5.6 28.4L58 77.6 32.4 91.8 38 63.4 17 43.6l28.6-3.4z" fill="url(#sg1)" stroke="#fff3c4" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M58 26l8 17 18 2.3" stroke="#fff8dc" stroke-width="4" stroke-linecap="round" fill="none" opacity=".7"/></svg>`,
   giftBox: `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
     <defs><linearGradient id="gb1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5aa8ff"/><stop offset="1" stop-color="#7a5cf0"/></linearGradient>
     <linearGradient id="gb2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd85a"/><stop offset="1" stop-color="#ffab2e"/></linearGradient></defs>

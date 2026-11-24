@@ -30,6 +30,15 @@ class NullNotifier:
     async def admin_text(self, key, **params):
         self.sent.append(("admin_text", None, key))
 
+    async def user_text(self, user_id, key, tab=None, **params):
+        self.sent.append(("user_text", user_id, key))
+
+    async def admin_topup(self, topup, key, **params):
+        self.sent.append(("admin_topup", topup.id, key))
+
+    async def admin_purchase(self, purchase, key, error=""):
+        self.sent.append(("admin_purchase", purchase.id, key))
+
     async def receipt_to_admins(self, order, *, file_id=None, kind="photo", data=None, filename="receipt.jpg"):
         self.sent.append(("receipt", order.id, kind))
         return file_id or "local-receipt", kind
