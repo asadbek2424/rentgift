@@ -59,8 +59,13 @@ class _Cache:
 class MarketappClient:
     def __init__(self, token: str, base_url: str = "https://api.marketapp.org", rps: float = 1.0,
                  transport: httpx.AsyncBaseTransport | None = None, timeout: float = 30) -> None:
-        if not token or any(ord(c) < 32 or ord(c) > 126 for c in token):
-            raise ValueError("MARKETAPP_API_TOKEN must be non-empty printable ASCII")
+        if not token:
+            raise ValueError("MARKETAPP_API_TOKEN is empty: Railway → service → Variables → add MARKETAPP_API_TOKEN")
+        bad = [i for i, c in enumerate(token) if ord(c) < 32 or ord(c) > 126]
+        if bad:
+            raise ValueError(
+                f"MARKETAPP_API_TOKEN has {len(bad)} invalid character(s) (length {len(token)}, first at position "
+                f"{bad[0] + 1}): it must be the plain token from marketapp.ws — no spaces, line breaks or quotes")
         self._token = token
         self._interval = 1 / max(rps, 0.1)
         self._lock = asyncio.Lock()

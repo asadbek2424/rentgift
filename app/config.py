@@ -99,6 +99,20 @@ class Settings(BaseSettings):
     def _strip_at(cls, value):
         return value.strip().lstrip("@") if isinstance(value, str) else value
 
+    @field_validator("marketapp_api_token", "bot_token", "userbot_api_hash", "userbot_session",
+                     "hot_wallet_mnemonic", "admin_wallet_address", mode="before")
+    @classmethod
+    def _clean_secret(cls, value):
+        """Railway paste mistakes: surrounding quotes, spaces/newlines, zero-width chars, 'Bearer ' prefix."""
+        if not isinstance(value, str):
+            return value
+        value = "".join(ch for ch in value if ch not in "\u200b\u200c\u200d\u2060\ufeff\xa0").strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'`":
+            value = value[1:-1].strip()
+        if value.lower().startswith("bearer "):
+            value = value[7:].strip()
+        return value
+
     @field_validator("database_url", mode="before")
     @classmethod
     def _async_driver(cls, value):
