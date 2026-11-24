@@ -35,11 +35,9 @@ def build_context() -> AppContext:
         market = MarketappClient(settings.marketapp_api_token, settings.marketapp_base_url, settings.marketapp_rps)
     hot = None
     if settings.wallet_mode == "hot":
-        hot = HotWallet(settings.hot_wallet_mnemonic, settings.toncenter_url, settings.toncenter_api_key)
-        if settings.admin_wallet_address and not same_address(hot.address.to_str(), settings.admin_wallet_address):
-            raise HotWalletError("HOT_WALLET_MNEMONIC (v4r2) does not match ADMIN_WALLET_ADDRESS. "
-                                 "The hot wallet must be the wallet that created the Marketapp API token.")
-        log.info("Hot wallet enabled: %s", hot.address.to_str(is_bounceable=False))
+        hot = HotWallet(settings.hot_wallet_mnemonic, settings.toncenter_url, settings.toncenter_api_key,
+                        expected_address=settings.admin_wallet_address)
+        log.info("Hot wallet enabled: %s (%s)", hot.address.to_str(is_bounceable=False), hot.derivation)
     return AppContext(settings=settings, market=market, rates=RateProvider(), hot_wallet=hot, notifier=NullNotifier())
 
 

@@ -147,18 +147,70 @@ def _cell_from_b64(value: str | None) -> Cell | None:
         raise HotWalletError("Invalid BoC in transaction message") from None
 
 
+def normalize_mnemonic(text: str) -> list[str]:
+    """Words only: drops numbering ("1." "2)"), commas, quotes, line breaks and capital letters."""
+    return re.findall(r"[a-z]+", (text or "").lower())
+
+
+def _slip10_ed25519(seed: bytes, path: list[int]) -> bytes:
+    """SLIP-0010 ed25519 derivation (hardened indices only) → 32-byte private seed."""
+    import hashlib as _hashlib
+    import hmac as _hmac
+    digest = _hmac.new(b"ed25519 seed", seed, _hashlib.sha512).digest()
+    key, chain = digest[:32], digest[32:]
+    for index in path:
+        data = b"\x00" + key + (index | 0x80000000).to_bytes(4, "big")
+        digest = _hmac.new(chain, data, _hashlib.sha512).digest()
+        key, chain = digest[:32], digest[32:]
+    return key
+
+
+BIP39_PATHS = {"bip39 m/44'/607'/0'": [44, 607, 0], "bip39 m/44'/607'/0'/0'/0'": [44, 607, 0, 0, 0],
+               "bip39 m/44'/607'/0'/0'": [44, 607, 0, 0]}
+
+
+def key_candidates(words: list[str]) -> list[tuple[str, bytes, bytes]]:
+    """Every way wallets turn these words into a TON key: (label, public_key, secret_key).
+
+    Classic TON wallets (old Tonkeeper, Tonhub) use the TON-specific scheme; newer multichain wallets
+    (Tonkeeper multichain, My Wallet, Trust…) create BIP-39 phrases and derive the TON key on m/44'/607'/…"""
+    import hashlib as _hashlib
+    from nacl.bindings import crypto_sign_seed_keypair
+    found = [("ton", *mnemonic_to_private_key(words))]
+    if len(words) in (12, 15, 18, 21, 24):
+        seed = _hashlib.pbkdf2_hmac("sha512", " ".join(words).encode(), b"mnemonic", 2048)
+        for label, path in BIP39_PATHS.items():
+            found.append((label, *crypto_sign_seed_keypair(_slip10_ed25519(seed, path))))
+    return found
+
+
+def v4r2_address(public_key: bytes) -> Address:
+    data = WalletV4Data(seqno=0, wallet_id=DEFAULT_WALLET_ID, public_key=public_key).serialize()
+    return Address((0, StateInit(code=WALLET_V4R2_CODE, data=data).serialize().hash))
+
+
 class HotWallet:
     """Wallet V4R2 controlled by the server. Signs exactly the messages Marketapp returns."""
 
     def __init__(self, mnemonic: str, toncenter_url: str = "https://toncenter.com", api_key: str = "",
-                 transport: httpx.AsyncBaseTransport | None = None) -> None:
-        words = mnemonic.split()
-        if not mnemonic_is_valid(words):
-            raise HotWalletError("HOT_WALLET_MNEMONIC is not a valid 24-word TON mnemonic")
-        self.public_key, self._private_key = mnemonic_to_private_key(words)
+                 transport: httpx.AsyncBaseTransport | None = None, expected_address: str = "") -> None:
+        words = normalize_mnemonic(mnemonic)
+        if len(words) not in (12, 15, 18, 21, 24):
+            raise HotWalletError(f"HOT_WALLET_MNEMONIC must be 12 or 24 words, got {len(words)}")
+        candidates = [(label, pub, priv, v4r2_address(pub)) for label, pub, priv in key_candidates(words)]
+        chosen = None
+        if expected_address:
+            chosen = next((c for c in candidates if same_address(c[3].to_str(), expected_address)), None)
+        elif mnemonic_is_valid(words):
+            chosen = candidates[0]
+        if chosen is None:
+            listing = "; ".join(f"{label}: {addr.to_str(is_bounceable=False)}" for label, _, _, addr in candidates)
+            raise HotWalletError("ADMIN_WALLET_ADDRESS does not match any V4R2 address of HOT_WALLET_MNEMONIC. "
+                                 f"V4R2 addresses of these words → {listing}. Put the one your wallet app shows "
+                                 "as V4R2 into ADMIN_WALLET_ADDRESS (and send TON / make the Marketapp token there).")
+        self.derivation, self.public_key, self._private_key, self.address = chosen
         data = WalletV4Data(seqno=0, wallet_id=DEFAULT_WALLET_ID, public_key=self.public_key).serialize()
         self.state_init = StateInit(code=WALLET_V4R2_CODE, data=data)
-        self.address = Address((0, self.state_init.serialize().hash))
         headers = {"X-API-Key": api_key} if api_key else {}
         self._http = httpx.AsyncClient(base_url=toncenter_url.rstrip("/"), headers=headers, timeout=20, transport=transport)
 
