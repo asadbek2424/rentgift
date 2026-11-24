@@ -708,7 +708,7 @@ async def _confirm_chain(ctx: AppContext, order: Order, item: dict, now: datetim
 
 
 EVENTS_CURSOR = "rent_events_cursor"
-EVENT_PAGES_PER_TICK = 10
+EVENT_PAGES_PER_TICK = 3
 
 
 async def follow_rent_events(ctx: AppContext, now: datetime) -> int:
@@ -731,6 +731,8 @@ async def follow_rent_events(ctx: AppContext, now: datetime) -> int:
                 live[canonical_address(order.nft_address)] = order
             except ValueError:
                 pass
+    if not renting and not live:
+        return 0          # nothing to watch — don't spend the Marketapp rate limit on the feed backlog
     wallet = ctx.settings.admin_wallet_address
     processed = 0
     for _ in range(EVENT_PAGES_PER_TICK):
