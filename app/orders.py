@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import logging
 import secrets
 from collections import defaultdict
@@ -652,6 +653,10 @@ async def tx_sent(ctx: AppContext, order_id: int, actor: str, boc: str, wallet: 
     raise ServiceError("bad_state", 409, order.status)
 
 
+_hot_alerted: dict[int, float] = {}       # order id → last time the admin was told (avoid spamming)
+HOT_ALERT_EVERY = 15 * 60
+
+
 async def _hot_sign(ctx: AppContext, order_id: int, actor: str) -> Order:
     order = await get_order(order_id)
     tx = json.loads(order.pending_tx_json or "{}")
@@ -659,8 +664,12 @@ async def _hot_sign(ctx: AppContext, order_id: int, actor: str) -> Order:
         boc = await ctx.hot_wallet.send(tx)
     except Exception as exc:  # broadcast failure: leave it for the admin
         log.error("Hot wallet failed for order %s: %s", order_id, exc)
-        await ctx.notifier.admin(order, "failed", buttons="sign", error=f"hot wallet: {exc}")
+        now_ts = time.monotonic()
+        if now_ts - _hot_alerted.get(order_id, -HOT_ALERT_EVERY) >= HOT_ALERT_EVERY:
+            _hot_alerted[order_id] = now_ts
+            await ctx.notifier.admin(order, "failed", buttons="sign", error=f"hot wallet: {exc}")
         raise ServiceError("wallet", 502, str(exc)) from None
+    _hot_alerted.pop(order_id, None)
     return await tx_sent(ctx, order_id, actor, boc, None)
 
 

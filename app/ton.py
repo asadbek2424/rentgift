@@ -196,7 +196,12 @@ class HotWallet:
                  transport: httpx.AsyncBaseTransport | None = None, expected_address: str = "") -> None:
         words = normalize_mnemonic(mnemonic)
         if len(words) not in (12, 15, 18, 21, 24):
-            raise HotWalletError(f"HOT_WALLET_MNEMONIC must be 12 or 24 words, got {len(words)}")
+            raw = mnemonic or ""
+            hint = ("the variable is EMPTY or missing in this service" if not raw.strip() else
+                    "it contains non-Latin letters (Cyrillic?) — the words must be English, e.g. 'apple'"
+                    if re.search(r"[^\x00-\x7f]", raw) else "check the words")
+            raise HotWalletError(f"HOT_WALLET_MNEMONIC must be 12 or 24 words, got {len(words)} "
+                                 f"(value length {len(raw)}): {hint}")
         candidates = [(label, pub, priv, v4r2_address(pub)) for label, pub, priv in key_candidates(words)]
         chosen = None
         if expected_address:
@@ -216,6 +221,14 @@ class HotWallet:
 
     async def close(self) -> None:
         await self._http.aclose()
+
+    async def balance_nano(self) -> int | None:
+        try:
+            response = await self._http.get("/api/v2/getAddressBalance", params={"address": self.address.to_str()})
+            response.raise_for_status()
+            return int(response.json().get("result") or 0)
+        except Exception:  # noqa: BLE001
+            return None
 
     async def seqno(self) -> int:
         response = await self._http.post("/api/v2/runGetMethod", json={
@@ -268,5 +281,11 @@ class HotWallet:
         boc = base64.b64encode(self.build_transfer(tx, seqno).to_boc()).decode()
         response = await self._http.post("/api/v2/sendBoc", json={"boc": boc})
         if response.status_code != 200 or not response.json().get("ok", False):
+            need = sum(int(m.get("amount") or 0) for m in tx.get("messages") or [])
+            have = await self.balance_nano()
+            if have is not None and have < need + 50_000_000:
+                raise HotWalletError(f"not enough GRAM/TON in the hot wallet: balance {have / 1e9:.3f}, "
+                                     f"needed ≈ {(need + 50_000_000) / 1e9:.3f} — top up "
+                                     f"{self.address.to_str(is_bounceable=False)}")
             raise HotWalletError(f"Broadcast failed (HTTP {response.status_code})")
         return boc
