@@ -9,12 +9,13 @@ from aiogram.types import BotCommand, BotCommandScopeChat, MenuButtonWebApp, Web
 
 from ..config import Settings
 from ..i18n import LANGS, t
-from . import admin, broadcast, handlers
+from . import admin, broadcast, handlers, userbot_login
 
 
 def create_bot(settings: Settings) -> tuple[Bot, Dispatcher]:
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
+    dp.include_router(userbot_login.router)  # admin-only; catches the 2FA password reply
     dp.include_router(broadcast.router)  # admin-only; must see the next admin message after /broadcast
     dp.include_router(admin.router)     # admin first: its filter only matches admins
     dp.include_router(handlers.router)
@@ -32,6 +33,7 @@ async def configure_bot(bot: Bot, settings: Settings) -> None:
     admin_commands = [BotCommand(command="admin", description="Admin"),
                       BotCommand(command="broadcast", description="Broadcast / Рассылка / Xabar yuborish"),
                       BotCommand(command="backup", description="Backup / Zaxira"),
+                      BotCommand(command="userbot", description="CardXabar akkaunt ulash / status"),
                       BotCommand(command="order", description="/order 12"),
                       BotCommand(command="markup", description="/markup 15"),
                       BotCommand(command="rate", description="/rate auto"),

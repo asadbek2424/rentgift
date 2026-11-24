@@ -25,9 +25,19 @@ def show_qr(url: str) -> None:
     try:
         import qrcode
 
-        qr = qrcode.QRCode(border=1)
+        import qrcode.image.svg
+
+        qr = qrcode.QRCode(border=2, image_factory=qrcode.image.svg.SvgPathImage)
         qr.add_data(url)
-        qr.print_ascii(invert=True)
+        try:
+            qr.print_ascii(invert=True)
+        except Exception:  # Windows console can't draw it — open as a picture instead
+            import os
+            import webbrowser
+
+            qr.make_image().save("login_qr.svg")
+            webbrowser.open("file://" + os.path.abspath("login_qr.svg"))
+            print("QR brauzerda ochildi (login_qr.svg). Kirgandan keyin faylni o'chiring.")
     except ImportError:
         print("(QR chizish uchun: pip install qrcode)")
     print("Havola:", url)

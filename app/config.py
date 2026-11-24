@@ -118,6 +118,15 @@ class Settings(BaseSettings):
     def _async_driver(cls, value):
         """Railway/Heroku give postgres://… ; SQLAlchemy async needs postgresql+asyncpg://…"""
         if isinstance(value, str):
+            value = value.strip().strip("\"'`").strip()
+            if not value:
+                return "sqlite+aiosqlite:///data/giftrent.db"
+            if "${{" in value or "://" not in value:
+                shown = value if "${{" in value else value[:12] + "…"
+                raise ValueError(
+                    f"DATABASE_URL is not a database address ({shown!r}). On Railway: bot service → Variables → "
+                    "DATABASE_URL → 'Add Reference' → pick your Postgres service → DATABASE_URL. The name inside "
+                    "${{...}} must match the Postgres service name exactly.")
             for prefix in ("postgres://", "postgresql://"):
                 if value.startswith(prefix):
                     return "postgresql+asyncpg://" + value[len(prefix):]
@@ -127,7 +136,7 @@ class Settings(BaseSettings):
     @classmethod
     def _railway_domain(cls, value):
         import os
-        if (not value or "localhost" in str(value)) and os.environ.get("RAILWAY_PUBLIC_DOMAIN"):
+        if (not value or "localhost" in str(value) or "example." in str(value)) and os.environ.get("RAILWAY_PUBLIC_DOMAIN"):
             return "https://" + os.environ["RAILWAY_PUBLIC_DOMAIN"]
         return value
 

@@ -46,6 +46,9 @@ def _sqlite_path() -> str | None:
     return None
 
 
+SECRET_SETTINGS = ("userbot_session",)    # logins never go into backup files (they are sent to Telegram)
+
+
 def _json_default(value):
     if isinstance(value, (datetime, date)):
         return value.isoformat()
@@ -59,6 +62,11 @@ def _sqlite_backup(source: str, target: Path) -> None:
         dst = sqlite3.connect(raw)
         try:
             src.backup(dst)          # consistent snapshot while the app keeps running
+            try:
+                dst.executemany("DELETE FROM settings WHERE key = ?", [(k,) for k in SECRET_SETTINGS])
+                dst.commit()
+            except sqlite3.Error:
+                pass
         finally:
             dst.close()
             src.close()
@@ -71,7 +79,10 @@ async def _json_backup(target: Path) -> None:
     async with Session() as session:
         for table in Base.metadata.sorted_tables:
             rows = (await session.execute(select(table))).mappings().all()
-            data["tables"][table.name] = [dict(row) for row in rows]
+            items = [dict(row) for row in rows]
+            if table.name == "settings":
+                items = [row for row in items if row.get("key") not in SECRET_SETTINGS]
+            data["tables"][table.name] = items
     payload = json.dumps(data, default=_json_default, ensure_ascii=False).encode()
     await asyncio.to_thread(_write_gzip, target, payload)
 
