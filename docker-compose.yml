@@ -1,0 +1,30 @@
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://giftrent:giftrent@db:5432/giftrent
+      PORT: "8080"
+    ports:
+      - "127.0.0.1:8080:8080"   # put Caddy/Nginx with HTTPS in front
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: giftrent
+      POSTGRES_PASSWORD: giftrent
+      POSTGRES_DB: giftrent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U giftrent"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:

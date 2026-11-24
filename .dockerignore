@@ -1,0 +1,7 @@
+.env
+data/
+tests/
+docs/
+.git/
+__pycache__/
+*.session

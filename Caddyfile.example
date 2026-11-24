@@ -1,0 +1,4 @@
+# sudo apt install caddy ; this file → /etc/caddy/Caddyfile ; HTTPS is automatic
+rent.example.uz {
+    reverse_proxy 127.0.0.1:8080
+}
