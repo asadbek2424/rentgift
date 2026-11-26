@@ -70,7 +70,9 @@
     "no_results": "Filtrga mos gift topilmadi",
     "for_rent": "ta ijarada",
     "search_name": "Qidirish: @nom, 888…",
-    "other_hint": "Username va raqamlar ham ijaraga olinadi — profilingizga yoki yangi akkauntga ulanadi."
+    "other_hint": "Username va raqamlar ham ijaraga olinadi — profilingizga yoki yangi akkauntga ulanadi.",
+    "all_gifts": "Barcha giftlar",
+    "search_gift": "Qidirish: nom, model, #raqam"
   },
   "gift": {
     "model": "Model",
@@ -169,7 +171,8 @@
     "empty": "Hali ijaralar yo'q",
     "browse": "Giftlarni ko'rish",
     "active": "Faol",
-    "history": "Tarix"
+    "history": "Tarix",
+    "details": "Batafsil"
   },
   "guide": {
     "title": "Qanday ishlaydi",
@@ -205,7 +208,10 @@
     "guide": "Qo'llanma",
     "premium": "Premium",
     "premium_d": "Telegram Premium — tez va avtomatik",
-    "safe_note": "NFT himoyalangan hamyonda turadi, ijarachi uni sota olmaydi va boshqa manzilga o'tkaza olmaydi."
+    "safe_note": "NFT himoyalangan hamyonda turadi, ijarachi uni sota olmaydi va boshqa manzilga o'tkaza olmaydi.",
+    "spent": "Jami sarflangan",
+    "rank": "Reytingdagi o'rin",
+    "ref_cta": "Do'stlaringizni taklif qiling va bonus oling"
   },
   "time": {
     "d": "{n} kun",

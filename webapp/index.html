@@ -7,11 +7,43 @@
   <meta name="referrer" content="no-referrer">
   <title>GiftRent</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <meta name="theme-color" content="#0b0f16">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap">
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
+  <!-- SplashScreen: visible until the first screen has loaded (min 1.2 s, then a 300 ms fade) -->
+  <div id="splash" role="status" aria-label="GiftRent">
+    <div class="splash-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2.5"/><path d="M3 12h18M12 8v13"/><path d="M12 8c-1.8-3.6-6-4.2-6-1.6C6 8 9 8 12 8Zm0 0c1.8-3.6 6-4.2 6-1.6C18 8 15 8 12 8Z"/></svg>
+      <b>GiftRent</b>
+    </div>
+    <div class="splash-art">
+      <!-- Put your own illustration at webapp/assets/splash.png; until then the drawn gift box below is shown. -->
+      <img src="/static/assets/splash.png" alt="" onerror="this.remove(); document.getElementById('splash-fallback').removeAttribute('hidden')">
+      <svg id="splash-fallback" hidden viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="sb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4aa8ff"/><stop offset="1" stop-color="#1e6fe8"/></linearGradient>
+          <linearGradient id="sl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6cbcff"/><stop offset="1" stop-color="#2b8cff"/></linearGradient>
+          <linearGradient id="sr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#ffb020"/></linearGradient>
+        </defs>
+        <ellipse cx="100" cy="176" rx="70" ry="10" fill="#2b8cff" opacity=".18"/>
+        <rect x="42" y="88" width="116" height="82" rx="12" fill="url(#sb)"/>
+        <rect x="34" y="68" width="132" height="28" rx="10" fill="url(#sl)"/>
+        <rect x="90" y="68" width="20" height="102" fill="url(#sr)"/>
+        <path d="M100 68c-8-22-34-28-36-12-1 12 22 12 36 12Zm0 0c8-22 34-28 36-12 1 12-22 12-36 12Z" fill="none" stroke="url(#sr)" stroke-width="8" stroke-linejoin="round"/>
+        <path d="M58 40l3 9 9 3-9 3-3 9-3-9-9-3 9-3z" fill="#fff" opacity=".7"/>
+        <path d="M150 28l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="#fff" opacity=".55"/>
+      </svg>
+    </div>
+    <div class="splash-bar"><i></i></div>
+  </div>
+
   <div id="app">
     <header class="topbar" id="topbar"></header>
+    <h1 class="page-title" id="page-title"></h1>
     <main id="view" class="view"></main>
     <nav class="tabbar" id="tabbar"></nav>
   </div>

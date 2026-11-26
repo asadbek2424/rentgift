@@ -397,3 +397,69 @@ def test_cardxabar_auto_confirms_unique_amounts():
         assert (await handle_notice(ctx, "userbot:1:104", CARDXABAR_IN.format(amount=fmt(a.amount_uzs))))["result"] == "matched"
         assert ("admin", a.id, "auto_paid") in ctx.notifier.sent
     asyncio.run(scenario())
+
+
+# ---------------------------------------------------------------------------- Telegram connect failures
+async def _tg_connect_failures():
+    from datetime import timedelta
+    from sqlalchemy import update
+    from app import orders as svc
+    from app.context import AppContext, NullNotifier
+    from app.config import get_settings
+    from app.db import Order, Session, init_db, utcnow
+    from app.marketapp import DemoMarketapp, MarketappError
+    from app.pricing import RateProvider
+
+    await init_db()
+    market = DemoMarketapp()
+    ctx = AppContext(settings=get_settings(), market=market, rates=RateProvider(), notifier=NullNotifier())
+    await svc.upsert_user(11, "Stale")
+    order = await svc.create_order(ctx, 11, market.items[5]["nft_address"], 3)
+    await svc.attach_receipt(ctx, 11, order.id, file_id="f")
+    await svc.confirm_payment(ctx, order.id, 1)
+    await svc.prepare_tx(ctx, order.id)
+    await svc.tx_sent(ctx, order.id, "admin:1", "boc", None)
+    await svc.worker_tick(ctx)
+    assert (await svc.get_order(order.id)).status == "awaiting_link"
+
+    # Marketapp says "ready" but Telegram refuses the stale login: we must disconnect it on Marketapp too,
+    # otherwise every new try gets "ready" again and fails the same way forever.
+    disconnected = []
+
+    async def ready(customer_id):
+        return {"status": "ready", "telegram": {"name": "Old"}}
+
+    async def refuse(nft_address, customer_id):
+        raise MarketappError("Marketapp HTTP 400", 400, {"detail": "Telegram session expired"})
+
+    async def disconnect(customer_id):
+        disconnected.append(customer_id)
+        return {"status": "ok"}
+    market.tg_connect, market.tg_display, market.tg_disconnect = ready, refuse, disconnect
+    with pytest.raises(svc.ServiceError) as err:
+        await svc.tg_connect(ctx, 11, order.id)
+    assert err.value.code == "display_failed" and disconnected == ["tg11"]
+    assert (await svc.get_order(order.id)).status == "awaiting_link"
+
+    # an order left in CONNECTING (app restarted mid-display) goes back after a few minutes
+    async with Session() as session:
+        await session.execute(update(Order).where(Order.id == order.id)
+                              .values(status="connecting", updated_at=utcnow() - timedelta(minutes=10)))
+        await session.commit()
+    await svc.worker_tick(ctx)
+    assert (await svc.get_order(order.id)).status == "awaiting_link"
+
+    # re-showing an ACTIVE gift waits for the real confirmation instead of reporting "displayed" at once
+    market.tg_display = DemoMarketapp.tg_display.__get__(market)
+    async def waiting(customer_id):
+        return {"status": "waiting", "link": "https://t.me/oauth?x"}
+    market.tg_connect = market.tg_status = waiting
+    await svc.submit_link(ctx, 11, order.id, fragment_link())
+    assert (await svc.get_order(order.id)).status == "active"
+    assert (await svc.tg_poll(ctx, 11, order.id))["status"] == "waiting"
+    market.tg_status = ready
+    assert (await svc.tg_poll(ctx, 11, order.id))["status"] == "displayed"
+
+
+def test_tg_connect_failures():
+    asyncio.run(_tg_connect_failures())

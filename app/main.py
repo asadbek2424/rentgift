@@ -22,6 +22,8 @@ from .marketapp import DemoMarketapp, MarketappClient
 from .pricing import RateProvider
 from .ton import HotWallet, HotWalletError, same_address
 
+from .logs import setup_logging
+
 log = logging.getLogger("giftrent")
 ROOT = Path(__file__).resolve().parent.parent
 WEBAPP = ROOT / "webapp"
@@ -43,7 +45,7 @@ def build_context() -> AppContext:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    setup_logging()
     settings = get_settings()
     await init_db()
     ctx = build_context()

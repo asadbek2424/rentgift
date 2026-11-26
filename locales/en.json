@@ -70,7 +70,9 @@
     "no_results": "No gifts match these filters",
     "for_rent": "for rent",
     "search_name": "Search: @name, 888…",
-    "other_hint": "Usernames and numbers can be rented too — they connect to your account or a new one."
+    "other_hint": "Usernames and numbers can be rented too — they connect to your account or a new one.",
+    "all_gifts": "All gifts",
+    "search_gift": "Search: name, model, #number"
   },
   "gift": {
     "model": "Model",
@@ -169,7 +171,8 @@
     "empty": "No rentals yet",
     "browse": "Browse gifts",
     "active": "Active",
-    "history": "History"
+    "history": "History",
+    "details": "Details"
   },
   "guide": {
     "title": "How it works",
@@ -205,7 +208,10 @@
     "guide": "Guide",
     "premium": "Premium",
     "premium_d": "Telegram Premium — fast and automatic",
-    "safe_note": "The NFT stays in a protected wallet: the renter can't sell it or move it to another address."
+    "safe_note": "The NFT stays in a protected wallet: the renter can't sell it or move it to another address.",
+    "spent": "Total spent",
+    "rank": "Rating place",
+    "ref_cta": "Invite your friends and get a bonus"
   },
   "time": {
     "d": "{n} d",

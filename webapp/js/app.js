@@ -98,32 +98,32 @@ function avatarHtml(user) {
   return `<div class="avatar">${esc(initials.trim() || '?')}</div>`;
 }
 
+function pageTitle() {
+  if (state.view?.name === 'order') return t('order.title', { id: state.view.id });
+  if (state.view) return t(`nav.${state.view.name}`);
+  return state.tab === 'catalog' ? '' : t(`nav.${state.tab}`);
+}
+
 function renderTopbar() {
   const bar = $('#topbar');
   const user = state.me?.user;
-  let center = '';
-  if (state.view?.name === 'order') center = `<div class="topbar-title">${esc(t('order.title', { id: state.view.id }))}</div>`;
-  else if (state.view) center = `<div class="topbar-title">${esc(t(`nav.${state.view.name}`))}</div>`;
-  else if (state.tab === 'stars') center = `<div class="segmented">
-      <button data-sseg="stars" class="${state.starsSeg === 'stars' ? 'active' : ''}">${esc(t('stars.seg_stars'))}</button>
-      <button data-sseg="premium" class="${state.starsSeg === 'premium' ? 'active' : ''}">${esc(t('stars.seg_premium'))}</button></div>`;
-  else if (state.tab === 'catalog' && state.category !== 'gift') center = `<div class="topbar-title">${esc(t(`cat.${state.category}_one`))}</div>`;
-  else if (state.tab === 'catalog') center = `<div class="segmented">
-      <button data-seg="all" class="${state.segment === 'all' ? 'active' : ''}">${esc(t('catalog.segment_all'))}</button>
-      <button data-seg="collections" class="${state.segment === 'collections' ? 'active' : ''}">${esc(t('catalog.segment_collections'))}</button></div>`;
-  else center = `<div class="topbar-title">${esc(t(`nav.${state.tab}`))}</div>`;
   const left = state.view
     ? `<button class="icon-btn" id="tb-back" aria-label="back">${icons.chevronLeft}</button>`
-    : `<button class="avatar-pill" id="tb-profile">${avatarHtml(user)}${icons.chevronRight}</button>`;
-  const bal = user ? `<button class="bal-pill" id="tb-bal"><span class="dot"></span>${esc(Number(user.balance_uzs || 0).toLocaleString('ru-RU'))}<i>${icons.plus}</i></button>` : '';
-  const langBtn = bal ? '' : `<button class="icon-btn" id="tb-lang" aria-label="language">${icons.globe}</button>`;
-  bar.innerHTML = `<div class="left">${left}</div>${center}<div class="right">${bal}${langBtn}</div>`;
+    : `<button class="avatar-btn" id="tb-profile" aria-label="profile">${avatarHtml(user)}</button>
+       <button class="stars-pill" id="tb-stars">${icons.star}<span class="lbl">Stars</span></button>`;
+  const right = user
+    ? `<button class="plus-btn" id="tb-plus" aria-label="top up">${icons.plus}</button>
+       <button class="bal-blue" id="tb-bal">${esc(money(user.balance_uzs || 0))}</button>`
+    : `<button class="icon-btn" id="tb-lang" aria-label="language">${icons.globe}</button>`;
+  bar.innerHTML = `<div class="hdr">${left}</div><div class="hdr">${right}</div>`;
+  const title = $('#page-title');
+  if (title) title.textContent = pageTitle();
   $('#tb-profile', bar)?.addEventListener('click', () => switchTab('profile'));
+  $('#tb-stars', bar)?.addEventListener('click', () => switchTab('stars'));
   $('#tb-bal', bar)?.addEventListener('click', () => openView('balance'));
-  bar.querySelectorAll('[data-sseg]').forEach(b => b.onclick = () => { state.starsSeg = b.dataset.sseg; haptic(); render(); });
+  $('#tb-plus', bar)?.addEventListener('click', () => openView('balance'));
   $('#tb-back', bar)?.addEventListener('click', goBack);
   $('#tb-lang', bar)?.addEventListener('click', langSheet);
-  bar.querySelectorAll('[data-seg]').forEach(b => b.onclick = () => { state.segment = b.dataset.seg; haptic(); render(); });
 }
 
 function renderTabbar() {
@@ -171,7 +171,13 @@ export async function render() {
     const fn = { balance: mod.balanceView, topup: mod.topupView, referral: mod.referralView, top: mod.topView }[state.view.name];
     if (fn) return fn(view, helpers(), state.view.id);
   }
-  if (state.tab === 'stars') return (await import('./wallet.js')).starsView(view, helpers());
+  if (state.tab === 'stars') {
+    view.innerHTML = `<div class="seg">
+      <button data-sseg="stars" class="${state.starsSeg === 'stars' ? 'active' : ''}">${esc(t('stars.seg_stars'))}</button>
+      <button data-sseg="premium" class="${state.starsSeg === 'premium' ? 'active' : ''}">${esc(t('stars.seg_premium'))}</button></div><div id="stars-body"></div>`;
+    view.querySelectorAll('[data-sseg]').forEach(b => b.onclick = () => { state.starsSeg = b.dataset.sseg; haptic(); render(); });
+    return (await import('./wallet.js')).starsView($('#stars-body', view), helpers());
+  }
   if (state.tab === 'catalog' && state.category !== 'gift') return otherCatalogView(view);
   if (state.tab === 'catalog') return state.segment === 'all' ? catalogView(view) : collectionsView(view);
   if (state.tab === 'rentals') return rentalsView(view);
@@ -213,13 +219,18 @@ function nameTile(g) {
     ${isNum ? `<span class="tile-icon">${icons.phone}</span>` : ''}<b>${esc(g.name)}</b></div>`;
 }
 
+function priceBtn(g) {
+  const price = g.per_day_uzs != null ? money(g.per_day_uzs) : `${g.price_per_day_ton} TON`;
+  return `<div class="gift-foot"><span class="price-btn">${esc(price)}<small>${esc(t('catalog.per_day').replace(/\s/g, ''))}</small></span>
+    <span class="icon-sq">${icons.cart}</span></div>`;
+}
+
 function otherCard(g) {
-  return `<button class="gift-card" data-gift="${esc(g.address)}">
+  return `<div class="gift-card" role="button" tabindex="0" data-gift="${esc(g.address)}">
     <div class="gift-img">${nameTile(g)}</div>
     <div class="gift-meta"><div class="gift-name">${esc(g.name)}</div>
-      <div class="gift-sub">${esc(t(`cat.${g.category}_one`))} · ${esc(t('catalog.days_range', { min: g.min_days, max: g.max_days }))}</div>
-      <div class="gift-price"><b>${g.per_day_uzs != null ? money(g.per_day_uzs) : esc(g.price_per_day_ton) + ' TON'}</b><span>${esc(t('catalog.per_day'))}</span></div></div>
-  </button>`;
+      <div class="gift-sub">${esc(t(`cat.${g.category}_one`))} · ${esc(t('catalog.days_range', { min: g.min_days, max: g.max_days }))}</div></div>
+    ${priceBtn(g)}</div>`;
 }
 
 async function loadOther(reset) {
@@ -245,10 +256,11 @@ async function otherCatalogView(view) {
     else if (!o.items.length) body = `<div class="empty"><div class="hero-art">${art.giftBox}</div>${esc(t(state.q ? 'catalog.no_results' : 'catalog.empty'))}</div>`;
     else body = `<div class="grid">${o.items.map(otherCard).join('')}</div>`
       + (o.cursor ? `<button class="btn secondary mt2" id="more">${esc(t('catalog.load_more'))}</button>` : '');
-    view.innerHTML = categoryTabs() + `<div class="toolbar"><div class="search grow-search">${icons.search}<input id="q" placeholder="${esc(t('catalog.search_name'))}" value="${esc(state.q)}"></div>
+    view.innerHTML = banner() + categoryTabs() + `<div class="toolbar"><div class="search grow-search">${icons.search}<input id="q" placeholder="${esc(t('catalog.search_name'))}" value="${esc(state.q)}"></div>
       <button class="tool icon-only" id="open-sort" aria-label="${esc(t('catalog.sort_btn'))}">${icons.sort}</button></div>
       <p class="note" style="margin-top:-4px">${esc(t('catalog.other_hint'))}</p>` + body;
     bindCategoryTabs(view);
+    $('#banner', view).onclick = () => openView('guide');
     $('#open-sort', view).onclick = sortSheet;
     const q = $('#q', view);
     let timer;
@@ -264,13 +276,18 @@ async function otherCatalogView(view) {
 }
 
 function giftCard(g) {
-  const sub = [g.model, g.backdrop].filter(Boolean).join(' · ');
-  return `<button class="gift-card" data-gift="${esc(g.address)}">
-    <div class="gift-img">${giftImage(g.image, g.name)}${g.number ? `<span class="gift-num">#${esc(g.number)}</span>` : ''}</div>
-    <div class="gift-meta"><div class="gift-name">${esc(g.collection || g.name)}</div>
-      <div class="gift-sub">${esc(sub || t('catalog.days_range', { min: g.min_days, max: g.max_days }))}</div>
-      <div class="gift-price"><b>${g.per_day_uzs != null ? money(g.per_day_uzs) : esc(g.price_per_day_ton) + ' TON'}</b><span>${esc(t('catalog.per_day'))}</span></div></div>
-  </button>`;
+  const sub = g.number ? `#${g.number}` : [g.model, g.backdrop].filter(Boolean).join(' · ') || t('catalog.days_range', { min: g.min_days, max: g.max_days });
+  return `<div class="gift-card" role="button" tabindex="0" data-gift="${esc(g.address)}">
+    <div class="gift-img">${giftImage(g.image, g.name)}</div>
+    <div class="gift-meta"><div class="gift-name">${esc(g.collection || g.name)}</div><div class="gift-sub">${esc(sub)}</div></div>
+    ${priceBtn(g)}</div>`;
+}
+
+// Gift search: the Marketapp catalogue has no name search for gifts, so it filters the loaded cards.
+function matchGift(g) {
+  const q = (state.gq || '').trim().toLowerCase().replace(/^#/, '');
+  if (!q) return true;
+  return [g.collection, g.name, g.model, g.backdrop, g.symbol, g.number].some(v => String(v ?? '').toLowerCase().includes(q));
 }
 
 function filterParams() {
@@ -327,36 +344,54 @@ function removeChip(key) {
   applyFilters();
 }
 
+function filterPills() {
+  const f = state.filters, n = f.collections.length;
+  const pill = (attrs, label, on) => `<button class="fpill ${on ? 'on' : ''}" ${attrs}><span>${esc(label)}</span>${icons.chevronDown}</button>`;
+  const colLabel = n === 1 ? f.collections[0].name : n ? `${t('catalog.collections_btn')} · ${n}` : t('catalog.collections_btn');
+  const trait = key => pill(`data-pick="${key}"`, f[key] ? `${t(`gift.${key}`)}: ${f[key]}` : t(`gift.${key}`), !!f[key]);
+  return `<div class="fpills">${pill('id="open-cols"', colLabel, n > 0)}${trait('model')}${trait('backdrop')}${trait('symbol')}
+    <button class="fpill icon" id="open-sort" aria-label="${esc(t('catalog.sort_btn'))}">${icons.sort}</button></div>`;
+}
+
 async function catalogView(view) {
+  const drawBody = () => {
+    const body = $('#gift-body', view);
+    if (!body) return;
+    const items = state.gifts.filter(matchGift);
+    if (!state.giftsLoaded) body.innerHTML = `<div class="grid">${'<div class="skeleton" style="aspect-ratio:.72"></div>'.repeat(6)}</div>`;
+    else if (state.giftsError && !state.gifts.length) body.innerHTML = `<div class="empty"><p>${esc(t('catalog.error'))}</p><button class="btn secondary small" id="retry" style="margin:0 auto">${esc(t('common.retry'))}</button></div>`;
+    else if (!items.length) body.innerHTML = `<div class="empty"><div class="hero-art">${art.giftBox}</div>${esc(t(activeChips().length || state.gq ? 'catalog.no_results' : 'catalog.empty'))}</div>`;
+    else body.innerHTML = `<div class="grid">${items.map(giftCard).join('')}</div>`
+      + (state.cursor ? `<button class="btn secondary mt2" id="more">${esc(t('catalog.load_more'))}</button>` : '');
+    $('#retry', body)?.addEventListener('click', async () => { state.giftsLoaded = false; drawBody(); await loadGifts(true); draw(); });
+    $('#more', body)?.addEventListener('click', async e => { e.target.disabled = true; await loadGifts(false); drawBody(); });
+    body.querySelectorAll('[data-gift]').forEach(b => b.onclick = () => {
+      const g = state.gifts.find(x => x.address === b.dataset.gift); if (g) giftSheet(g);
+    });
+  };
   const draw = () => {
     if (state.tab !== 'catalog' || state.segment !== 'all' || state.view) return;
-    const nCol = state.filters.collections.length, nFil = filterCount();
-    const sortLabel = t((SORTS.find(([v]) => v === state.sort) || SORTS[0])[1]);
-    const toolbar = `<div class="toolbar">
-      <button class="tool ${nCol ? 'on' : ''}" id="open-cols">${esc(t('catalog.collections_btn'))}${nCol ? ` <i>${nCol}</i>` : ''} ${icons.layers}</button>
-      <button class="tool ${nFil ? 'on' : ''}" id="open-filters">${esc(t('catalog.filters_btn'))}${nFil ? ` <i>${nFil}</i>` : ''} ${icons.sliders}</button>
-      <button class="tool icon-only" id="open-sort" aria-label="${esc(t('catalog.sort_btn'))}" title="${esc(sortLabel)}">${icons.sort}</button></div>`;
-    const chips = activeChips();
+    const nFil = filterCount();
+    // price / item-number filters have no pill of their own: show them as removable chips
+    const chips = activeChips().filter(([k]) => k === 'price' || k === 'num');
     const chipRow = chips.length ? `<div class="chips">${chips.map(([k, label]) =>
       `<button class="chip active" data-rm="${esc(k)}">${esc(label)} ${icons.x}</button>`).join('')}</div>` : '';
-    let body;
-    if (!state.giftsLoaded) body = `<div class="grid">${'<div class="skeleton" style="aspect-ratio:.78"></div>'.repeat(6)}</div>`;
-    else if (state.giftsError && !state.gifts.length) body = `<div class="empty"><p>${esc(t('catalog.error'))}</p><button class="btn secondary small" id="retry">${esc(t('common.retry'))}</button></div>`;
-    else if (!state.gifts.length) body = `<div class="empty"><div class="hero-art">${art.giftBox}</div>${esc(t(chips.length ? 'catalog.no_results' : 'catalog.empty'))}</div>`;
-    else body = `<div class="grid">${state.gifts.map(giftCard).join('')}</div>`
-      + (state.cursor ? `<button class="btn secondary mt2" id="more">${esc(t('catalog.load_more'))}</button>` : '');
-    view.innerHTML = categoryTabs() + banner() + toolbar + chipRow + body;
+    view.innerHTML = banner() + categoryTabs()
+      + `<div class="toolbar"><div class="search grow-search">${icons.search}<input id="gq" placeholder="${esc(t('catalog.search_gift'))}" value="${esc(state.gq || '')}"></div>
+        <button class="tool icon-only ${nFil ? 'on' : ''}" id="open-filters" aria-label="${esc(t('catalog.filters_btn'))}">${icons.sliders}${nFil ? `<i>${nFil}</i>` : ''}</button></div>`
+      + filterPills() + chipRow
+      + `<div class="sec-row"><b>${icons.gift.replace('<svg', '<svg width="20" height="20"')}${esc(t('catalog.all_gifts'))}</b>
+        <button class="link-btn" id="to-cols">${esc(t('catalog.segment_collections'))} ›</button></div><div id="gift-body"></div>`;
     bindCategoryTabs(view);
     $('#banner', view).onclick = () => openView('guide');
     $('#open-cols', view).onclick = collectionsSheet;
-    $('#open-filters', view).onclick = filtersSheet;
+    $('#open-filters', view).onclick = () => filtersSheet();
     $('#open-sort', view).onclick = sortSheet;
+    $('#to-cols', view).onclick = () => { state.segment = 'collections'; haptic(); render(); };
+    view.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => filtersSheet(b.dataset.pick));
     view.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => removeChip(b.dataset.rm));
-    $('#retry', view)?.addEventListener('click', async () => { state.giftsLoaded = false; draw(); await loadGifts(true); draw(); });
-    $('#more', view)?.addEventListener('click', async e => { e.target.disabled = true; await loadGifts(false); draw(); });
-    view.querySelectorAll('[data-gift]').forEach(b => b.onclick = () => {
-      const g = state.gifts.find(x => x.address === b.dataset.gift); if (g) giftSheet(g);
-    });
+    $('#gq', view).oninput = e => { state.gq = e.target.value; drawBody(); };
+    drawBody();
   };
   draw();
   if (!state.giftsLoaded) { await loadGifts(true); draw(); }
@@ -379,12 +414,19 @@ function collectionRow(c, checkbox, checked) {
 }
 
 async function collectionsView(view) {
-  view.innerHTML = banner() + `<div class="list">${'<div class="skeleton" style="height:78px"></div>'.repeat(6)}</div>`;
-  $('#banner', view).onclick = () => openView('guide');
-  try { await ensureCollections(); } catch { view.innerHTML = banner() + `<div class="empty">${esc(t('catalog.error'))}</div>`; return; }
-  if (state.tab !== 'catalog' || state.segment !== 'collections') return;
-  view.innerHTML = banner() + `<div class="list">${state.collections.map(c => collectionRow(c, false)).join('')}</div>`;
-  $('#banner', view).onclick = () => openView('guide');
+  const head = () => banner() + categoryTabs() + `<div class="sec-row"><b>${icons.layers.replace('<svg', '<svg width="20" height="20"')}${esc(t('catalog.segment_collections'))}</b>
+    <button class="link-btn" id="to-all">${esc(t('catalog.all_gifts'))} ›</button></div>`;
+  const bind = () => {
+    $('#banner', view).onclick = () => openView('guide');
+    $('#to-all', view).onclick = () => { state.segment = 'all'; haptic(); render(); };
+    bindCategoryTabs(view);
+  };
+  view.innerHTML = head() + `<div class="list">${'<div class="skeleton" style="height:76px"></div>'.repeat(6)}</div>`;
+  bind();
+  try { await ensureCollections(); } catch { view.innerHTML = head() + `<div class="empty">${esc(t('catalog.error'))}</div>`; bind(); return; }
+  if (state.tab !== 'catalog' || state.segment !== 'collections' || state.view) return;
+  view.innerHTML = head() + `<div class="list">${state.collections.map(c => collectionRow(c, false)).join('')}</div>`;
+  bind();
   view.querySelectorAll('[data-col]').forEach(b => b.onclick = () => {
     const c = state.collections.find(x => x.address === b.dataset.col);
     state.filters.collections = [{ address: c.address, name: c.name }]; state.filters.model = ''; haptic(); applyFilters();
@@ -423,7 +465,7 @@ function collectionsSheet() {
   });
 }
 
-function filtersSheet() {
+function filtersSheet(focus) {
   const f = { ...state.filters };
   const one = f.collections.length === 1 ? f.collections[0].address : '';
   const html = `<h3 class="left-title">${esc(t('catalog.filters_btn'))}</h3>
@@ -441,7 +483,7 @@ function filtersSheet() {
   openSheet(html, async (sheet, close) => {
     const box = $('#attr-groups', sheet);
     let groups = [];
-    const open = new Set();
+    const open = new Set(typeof focus === 'string' ? [focus] : []);
     const draw = () => {
       const q = $('#a-q', sheet).value.trim().toLowerCase();
       box.innerHTML = groups.map(g => {
@@ -499,19 +541,20 @@ function giftSheet(g) {
   let days = Math.max(g.min_days, Math.min(g.max_days, 1));
   const attrs = [['gift.model', g.model], ['gift.backdrop', g.backdrop], ['gift.symbol', g.symbol]].filter(([, v]) => v);
   const other = g.category && g.category !== 'gift';
+  const title = !other && g.collection && g.number ? [g.collection, `#${g.number}`] : [g.name, ''];
   const html = `
     <div class="gift-hero">${other ? nameTile(g) : giftImage(g.image, g.name)}</div>
-    <h3>${esc(g.name)}</h3>
-    <div class="attrs">${attrs.map(([k, v]) => `<div class="attr"><span>${esc(t(k))}</span>${esc(v)}</div>`).join('')}</div>
-    <div class="card" style="padding:14px">
+    <div class="gd-title"><h3>${esc(title[0])}</h3>${title[1] ? `<span>${esc(title[1])}</span>` : ''}</div>
+    ${attrs.length ? `<div class="attr-table">${attrs.map(([k, v]) => `<div class="attr-row"><span>${esc(t(k))}</span><b>${esc(v)}</b></div>`).join('')}</div>` : ''}
+    <div class="card" style="padding:4px 14px 14px">
       <div class="kv"><span>${esc(t('gift.per_day'))}</span><b>${g.per_day_uzs != null ? money(g.per_day_uzs) : '—'}</b></div>
       <div class="kv" style="border:0;padding-bottom:6px"><span>${esc(t('gift.duration'))}</span><b class="muted" style="font-size:13px">${esc(t('gift.limits', { min: g.min_days, max: g.max_days }))}</b></div>
       <div class="stepper"><button id="minus">−</button><div class="val"><b id="days"></b><span>${esc(t('gift.days'))}</span></div><button id="plus">+</button></div>
       <div class="chips mt" id="quick" style="margin-bottom:0"></div>
     </div>
     <div class="mt" id="bd"></div><p class="note center" id="ton" style="margin-top:6px"></p>
-    <button class="btn mt" id="rent">${esc(t('gift.rent'))}</button>
-    <p class="note center">${esc(other ? t('catalog.other_hint') : t('gift.how'))}</p>`;
+    <p class="note center">${esc(other ? t('catalog.other_hint') : t('gift.how'))}</p>
+    <div class="sticky-cta"><button class="btn" id="rent">${esc(t('gift.rent'))}</button></div>`;
   openSheet(html, (sheet, close) => {
     let seq = 0;
     const quick = [1, 3, 7, 14, 30].filter(d => d >= g.min_days && d <= g.max_days);
@@ -797,8 +840,23 @@ function extendSheet(o) {
 }
 
 // ------------------------------------------------------------------ rentals
+const RENT_KIND = { active: 'ok', extended: 'ok', expired: 'info', cancelled: 'info', refunded: 'info', failed: 'err' };
+const RENT_ICON = { ok: 'checkCircle', info: 'snow', err: 'alert', wait: 'clock' };
+
+function statusCard(o) {
+  const kind = RENT_KIND[o.status] || 'wait';
+  const thumb = (o.category || 'gift') === 'gift' ? giftImage(o.image, o.nft_name) : nameTile({ name: o.nft_name, category: o.category });
+  return `<button class="status-card" data-order="${o.id}">
+    <div class="sc-head ${kind}">${icons[RENT_ICON[kind]]}<span>${esc(t(`status.${o.status}`))}</span><span class="date">${esc(dateTime(o.created_at))}</span></div>
+    <div class="sc-body"><div class="thumb">${thumb}</div>
+      <div class="grow"><div class="title">${esc(o.nft_name)}</div>
+        <div class="sub">#${o.id}${o.kind === 'extend' ? ` · +${esc(t('ext.label'))}` : ''} · ${o.days} ${esc(t('common.days'))}</div></div>
+      <div class="price">${money(o.amount_uzs)}</div></div>
+    <div class="sc-foot">${esc(t('rentals.details'))} ${icons.chevronRight}</div></button>`;
+}
+
 async function rentalsView(view) {
-  view.innerHTML = `<div class="list">${'<div class="skeleton" style="height:80px"></div>'.repeat(4)}</div>`;
+  view.innerHTML = `<div class="list">${'<div class="skeleton" style="height:130px"></div>'.repeat(3)}</div>`;
   try { state.orders = (await api.orders()).items; } catch (e) { view.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
   if (state.tab !== 'rentals' || state.view) return;
   if (!state.orders.length) {
@@ -807,12 +865,15 @@ async function rentalsView(view) {
     $('#browse', view).onclick = () => switchTab('catalog');
     return;
   }
-  const row = o => `<button class="row-card" data-order="${o.id}"><div class="thumb">${(o.category || 'gift') === 'gift' ? giftImage(o.image, o.nft_name) : nameTile({ name: o.nft_name, category: o.category })}</div>
-    <div class="grow"><div class="title">${esc(o.nft_name)}</div><div class="sub">#${o.id}${o.kind === 'extend' ? ` · +${esc(t('ext.label'))}` : ''} · ${o.days} ${esc(t('common.days'))} · ${money(o.amount_uzs)}</div>
-    <div style="margin-top:6px">${statusBadge(o.status)}</div></div><span class="chev">${icons.chevronRight}</span></button>`;
   const open = state.orders.filter(o => !FINAL.has(o.status)), past = state.orders.filter(o => FINAL.has(o.status));
-  view.innerHTML = (open.length ? `<div class="section-title">${esc(t('rentals.active'))}</div><div class="list">${open.map(row).join('')}</div>` : '')
-    + (past.length ? `<div class="section-title">${esc(t('rentals.history'))}</div><div class="list">${past.map(row).join('')}</div>` : '');
+  if (!state.rentSeg) state.rentSeg = open.length ? 'active' : 'history';
+  const items = state.rentSeg === 'active' ? open : past;
+  view.innerHTML = `<div class="seg">
+      <button data-rs="active" class="${state.rentSeg === 'active' ? 'active' : ''}">${esc(t('rentals.active'))} (${open.length})</button>
+      <button data-rs="history" class="${state.rentSeg === 'history' ? 'active' : ''}">${esc(t('rentals.history'))} (${past.length})</button></div>`
+    + (items.length ? `<div class="list">${items.map(statusCard).join('')}</div>`
+      : `<div class="empty"><div class="hero-art">${art.giftBox}</div>${esc(t('rentals.empty'))}</div>`);
+  view.querySelectorAll('[data-rs]').forEach(b => b.onclick = () => { state.rentSeg = b.dataset.rs; haptic(); rentalsView(view); });
   view.querySelectorAll('[data-order]').forEach(b => b.onclick = () => openOrder(b.dataset.order));
 }
 
@@ -832,28 +893,36 @@ function guideView(view) {
 function profileView(view) {
   const { user, app, rentals } = state.me;
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'User';
+  const sm = (icon, n = 18) => icon.replace('<svg', `<svg width="${n}" height="${n}"`);
   const row = (id, color, icon, label, value = '') => `<button class="menu-row" data-row="${id}"><span class="menu-icon" style="background:${color}">${icon}</span>
     <span class="label">${esc(label)}</span><span class="value">${esc(value)}</span><span class="chev">${icons.chevronRight}</span></button>`;
-  const tile = (id, cls, icon, title, sub) => `<button class="p-tile ${cls}" data-row="${id}"><span class="p-ico">${icon.replace('<svg', '<svg width="20" height="20"')}</span>
-    <b>${esc(title)}</b><small>${esc(sub)}</small></button>`;
-  view.innerHTML = `<div class="p-card">
-      ${avatarHtml(user)}<h2>${esc(name)}</h2>${user.username ? `<span class="p-user">● @${esc(user.username)}</span>` : ''}
-      <div class="p-stats"><button class="p-stat" data-row="balance"><b>${esc(Number(user.balance_uzs || 0).toLocaleString('ru-RU'))}</b><span>${esc(t('profile.balance'))}</span></button>
-        <button class="p-stat" data-row="rentals"><b>${rentals}</b><span>${esc(t('profile.active'))}</span></button></div>
-      <button class="btn mt" data-row="topup">${icons.plus.replace('<svg', '<svg width="18" height="18"')} ${esc(t('profile.topup'))}</button></div>
-    ${app.support ? `<button class="p-chat" data-row="support"><span class="p-ico">${icons.chat.replace('<svg', '<svg width="22" height="22"')}</span>
-      <div><b>${esc(t('profile.chat'))}</b><small>${esc(t('profile.chat_d'))}</small></div><span class="chev">${icons.chevronRight}</span></button>` : ''}
-    <div class="p-tiles">${tile('referral', 'violet', icons.users, t('profile.referral'), t('profile.referral_d'))}
-      ${tile('premium', 'sunset', icons.star, t('profile.premium'), t('profile.premium_d'))}</div>
+  const stat = (id, color, icon, value, label, key = '') => `<button class="stat-card" ${id ? `data-row="${id}"` : ''}>
+    <span class="ico" style="background:${color}26;color:${color}">${sm(icon)}</span>
+    <div><b ${key ? `id="ps-${key}"` : ''}>${esc(value)}</b><span>${esc(label)}</span></div></button>`;
+  view.innerHTML = `<div class="pf-head">${avatarHtml(user)}<div><h2>${esc(name)}</h2>${user.username ? `<p>@${esc(user.username)}</p>` : ''}</div></div>
+    <div class="stat-grid">
+      ${stat('balance', '#2b8cff', icons.wallet, money(user.balance_uzs || 0), t('profile.balance'))}
+      ${stat('rentals', '#2ecc71', icons.key, String(rentals), t('profile.active'))}
+      ${stat('top', '#ffb020', icons.card, money(user.spent_uzs || 0), t('profile.spent'))}
+      ${stat('referral', '#8b5cf6', icons.users, '…', t('ref.invited'), 'invited')}
+      ${stat('referral', '#4aa8ff', icons.bolt, '…', t('ref.earned'), 'earned')}
+      ${stat('top', '#ffc83d', icons.trophy, '…', t('profile.rank'), 'rank')}
+    </div>
+    <button class="ref-card" data-row="referral"><h3>${esc(t('profile.ref_cta'))}</h3>
+      <div class="info"><span class="ico">${sm(icons.users)}</span><div><b>${esc(t('profile.referral'))}</b><small>${esc(t('profile.referral_d'))}</small></div>
+      <span class="chev">${icons.chevronRight}</span></div></button>
     <div class="menu">
       ${row('rentals', 'var(--green-1)', icons.key, t('nav.rentals'), String(rentals))}
       ${row('top', '#e0a400', icons.trophy, t('profile.top'))}
       ${row('guide', 'var(--blue)', icons.book, t('profile.guide'))}
-      ${row('lang', 'var(--purple)', icons.globe, t('profile.lang'), t('lang.name'))}
+      ${row('premium', '#8b5cf6', icons.star, t('profile.premium'))}
+      ${row('lang', '#3d4a5e', icons.globe, t('profile.lang'), t('lang.name'))}
+      ${app.support ? row('support', '#2b8cff', icons.chat, t('profile.chat')) : ''}
       ${app.channel ? row('channel', '#e0a400', icons.bell, t('profile.channel'), '@' + app.channel) : ''}
       ${app.offer_url ? row('offer', '#3f9d6b', icons.doc, t('profile.offer')) : ''}
     </div>
-    <p class="center muted" style="font-size:12px;line-height:1.5;padding:0 10px">${esc(t('profile.safe_note'))}</p>
+    <button class="btn" data-row="topup">${sm(icons.plus)} ${esc(t('profile.topup'))}</button>
+    <p class="center muted" style="font-size:12px;line-height:1.5;padding:0 10px;margin-top:16px">${esc(t('profile.safe_note'))}</p>
     <p class="center muted" style="font-size:12px">${esc(app.name)}</p>`;
   const actions = {
     lang: langSheet, support: () => openTg(app.support), channel: () => openTg(app.channel),
@@ -862,6 +931,11 @@ function profileView(view) {
     guide: () => openView('guide'), premium: () => { state.starsSeg = 'premium'; switchTab('stars'); },
   };
   view.querySelectorAll('[data-row]').forEach(b => b.onclick = () => actions[b.dataset.row]?.());
+  // referral and rating numbers come from their own (read-only) endpoints
+  const fill = (key, value) => { const el = $(`#ps-${key}`, view); if (el) el.textContent = value; };
+  api.referral().then(r => { fill('invited', String(r.invited)); fill('earned', money(r.earned_uzs)); })
+    .catch(() => { fill('invited', '—'); fill('earned', '—'); });
+  api.top().then(r => fill('rank', r.me?.rank ? `#${r.me.rank}` : '—')).catch(() => fill('rank', '—'));
 }
 
 // ------------------------------------------------------------------ language
@@ -891,10 +965,26 @@ function langSheet() {
 }
 
 // ------------------------------------------------------------------ boot
+function hideSplash() {
+  const el = $('#splash');
+  if (!el) return;
+  setTimeout(() => { el.classList.add('hide'); setTimeout(() => el.remove(), 320); }, Math.max(0, 1200 - performance.now()));
+}
+
+// Telegram safe areas (Bot API 8.0+, fullscreen): expose them to CSS as --tg-top / --tg-bottom.
+function syncSafeArea() {
+  const sa = tg?.safeAreaInset || {}, csa = tg?.contentSafeAreaInset || {};
+  const root = document.documentElement.style;
+  root.setProperty('--tg-top', `${(sa.top || 0) + (csa.top || 0)}px`);
+  root.setProperty('--tg-bottom', `${(sa.bottom || 0) + (csa.bottom || 0)}px`);
+}
+
 async function boot() {
   if (tg) {
     tg.ready(); tg.expand();
-    try { tg.setHeaderColor('#1a2130'); tg.setBackgroundColor('#1a2130'); tg.setBottomBarColor?.('#1a2130'); } catch { /* old client */ }
+    try { tg.setHeaderColor('#0B0F16'); tg.setBackgroundColor('#0B0F16'); tg.setBottomBarColor?.('#0B0F16'); } catch { /* old client */ }
+    syncSafeArea();
+    try { tg.onEvent('safeAreaChanged', syncSafeArea); tg.onEvent('contentSafeAreaChanged', syncSafeArea); } catch { /* old client */ }
     try { tg.disableVerticalSwipes?.(); } catch { /* old client */ }
     tg.BackButton?.onClick(goBack);
   }
@@ -905,6 +995,7 @@ async function boot() {
   } catch (e) {
     await loadLang(tg?.initDataUnsafe?.user?.language_code || 'uz');
     $('#view').innerHTML = `<div class="card hero mt2"><div class="hero-art">${art.giftBox}</div><h2>GiftRent</h2><p>${esc(errText(e))}</p></div>`;
+    hideSplash();
     return;
   }
   await loadLang(state.me.user.lang);
@@ -916,7 +1007,8 @@ async function boot() {
   if (orderId && state.tab !== 'admin') state.view = { name: 'order', id: Number(orderId) };
   if (orderId && params.get('extend')) state.autoExtend = Number(orderId);
   if (state.tab === 'admin' && orderId) state.adminFocus = Number(orderId);
-  render();
+  await render();
+  hideSplash();
 }
 
 boot();

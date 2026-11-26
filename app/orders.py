@@ -466,6 +466,18 @@ def _display_error(exc: MarketappError) -> str:
     return "display_failed"
 
 
+async def _forget_tg_login(ctx: AppContext, user_id: int) -> None:
+    """Drop the customer's Telegram login on our side AND on Marketapp's.
+
+    Only clearing our flag is not enough: Marketapp keeps answering `ready` to /tg/connect/ for a login that
+    Telegram/Fragment no longer accepts, so the customer would never get a new link and every try fails again."""
+    await _set_tg_ready(user_id, False)
+    try:
+        await ctx.market.tg_disconnect(customer_id(user_id))
+    except MarketappError as exc:
+        log.warning("tg disconnect for user %s failed: %s %s", user_id, exc, exc.detail)
+
+
 async def display_gift(ctx: AppContext, order_id: int, actor: str) -> Order:
     """Show the rented gift on the customer's connected Telegram (no fragment.com, no wallet signature)."""
     async with _locks[order_id]:
@@ -475,21 +487,33 @@ async def display_gift(ctx: AppContext, order_id: int, actor: str) -> Order:
                                   connect_attempts=order.connect_attempts + 1)
         try:
             response = await ctx.market.tg_display(order.nft_address, customer_id(order.user_id))
-        except MarketappError as exc:
+        except Exception as exc:          # never leave the order stuck in CONNECTING
+            detail = getattr(exc, "detail", None)
+            log.warning("tg display of order %s failed: %s %s", order_id, exc, detail)
+            await _transition(order_id, {S.CONNECTING}, previous, "system", note=f"display: {exc} {detail or ''}"[:500],
+                              connect_response=(json.dumps(detail) if detail else str(exc))[:2000])
+            if not isinstance(exc, MarketappError):
+                raise
             code = _display_error(exc)
-            await _transition(order_id, {S.CONNECTING}, previous, "system", note=f"display: {exc} {exc.detail}"[:500],
-                              connect_response=(json.dumps(exc.detail) if exc.detail else str(exc))[:2000])
             if code == "display_failed" and exc.status == 400:
-                await _set_tg_ready(order.user_id, False)    # login may have expired: ask to connect again
+                await _forget_tg_login(ctx, order.user_id)   # login expired/refused: next try gets a fresh link
             raise ServiceError(code, 400 if code != "marketapp" else 503) from None
         shown = str(response.get("displayed") or "") if isinstance(response, dict) else ""
         order = await _transition(order_id, {S.CONNECTING}, S.ACTIVE, actor, connected_at=utcnow(),
                                   connect_response=json.dumps(response, ensure_ascii=False)[:2000])
+    log.info("Order %s displayed on Telegram account %r", order_id, shown)
     if shown:
         await _set_tg_ready(order.user_id, True, shown)
     await ctx.notifier.user(order, "displayed", account=shown or "Telegram")
     await ctx.notifier.admin(order, "activated")
     return order
+
+
+def _tg_service_error(exc: MarketappError, where: str, user_id: int) -> ServiceError:
+    log.warning("tg %s for user %s failed: %s %s", where, user_id, exc, exc.detail)
+    if exc.status in (None, 503):
+        return ServiceError("marketapp", 503)
+    return ServiceError("display_failed", 400)
 
 
 async def tg_connect(ctx: AppContext, user_id: int, order_id: int) -> dict:
@@ -500,8 +524,9 @@ async def tg_connect(ctx: AppContext, user_id: int, order_id: int) -> dict:
     try:
         response = await ctx.market.tg_connect(customer_id(user_id))
     except MarketappError as exc:
-        raise ServiceError("marketapp" if exc.status in (None, 503) else "display_failed", 503) from None
+        raise _tg_service_error(exc, "connect", user_id) from None
     status = str(response.get("status") or "")
+    log.info("tg connect for user %s / order %s: %s", user_id, order_id, status)
     if status in ("ready", "confirmed"):
         await _set_tg_ready(user_id, True, _tg_name(response))
         order = await display_gift(ctx, order_id, f"user:{user_id}")
@@ -510,23 +535,26 @@ async def tg_connect(ctx: AppContext, user_id: int, order_id: int) -> dict:
 
 
 async def tg_poll(ctx: AppContext, user_id: int, order_id: int) -> dict:
-    """Step 2: called by the Mini App every ~2.5 s while the customer confirms the login in Telegram."""
+    """Step 2: called by the Mini App every ~2.5 s while the customer confirms the login in Telegram.
+
+    Works for AWAITING_LINK (first display) and ACTIVE (show the gift again / on another account):
+    an ACTIVE order is displayed again only after the customer really confirmed the login."""
     order = await get_order(order_id, user_id)
-    if order.status == S.ACTIVE:
-        return {"status": "displayed", "order": order}
-    if order.status not in (S.AWAITING_LINK, S.CONNECTING):
+    if order.status == S.CONNECTING:
+        return {"status": "consumed"}                # a display is running right now: keep waiting
+    if order.status not in (S.AWAITING_LINK, S.ACTIVE):
         raise ServiceError("bad_state", 409, order.status)
     try:
         response = await ctx.market.tg_status(customer_id(user_id))
     except MarketappError as exc:
         if exc.status in (None, 503):
             return {"status": "consumed"}           # Telegram did not answer: keep polling
-        raise ServiceError("display_failed", 400) from None
+        raise _tg_service_error(exc, "status", user_id) from None
     status = str(response.get("status") or "")
     if status in ("ready", "confirmed"):
+        log.info("tg login confirmed for user %s / order %s", user_id, order_id)
         await _set_tg_ready(user_id, True, _tg_name(response))
-        if order.status == S.AWAITING_LINK:
-            order = await display_gift(ctx, order_id, f"user:{user_id}")
+        order = await display_gift(ctx, order_id, f"user:{user_id}")
         return {"status": "displayed", "order": order}
     return {"status": status or "waiting", "link": response.get("link")}
 
@@ -933,6 +961,17 @@ async def worker_tick(ctx: AppContext) -> None:
                 order = await _transition(order.id, {S.CONNECT_SIGNING}, S.AWAITING_LINK, "system", note="connect tx expired",
                                           pending_tx_json="", pending_tx_kind="")
                 await ctx.notifier.user(order, "link_failed")
+            except ServiceError:
+                pass
+
+    # 3b. orders stuck in CONNECTING (the app restarted or crashed in the middle of a display / tonconnect)
+    for order in await _orders({S.CONNECTING}):
+        changed = aware(order.updated_at)
+        if changed and now - changed > timedelta(minutes=3):
+            back = S.ACTIVE if order.connected_at else S.AWAITING_LINK
+            try:
+                await _transition(order.id, {S.CONNECTING}, back, "system", note="connecting timed out")
+                log.warning("Order %s was stuck in connecting; moved back to %s", order.id, back)
             except ServiceError:
                 pass
 

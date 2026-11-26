@@ -109,7 +109,7 @@ class MarketappClient:
             self._next_at = time.monotonic() + self._interval
 
     async def _request(self, method: str, path: str, *, params: dict | None = None, json: dict | None = None,
-                       retries: int = 4) -> Any:
+                       retries: int = 4, retry_post_503: bool = False) -> Any:
         query = {k: v for k, v in (params or {}).items() if v not in (None, "")}
         for attempt in range(retries):
             await self._pace()
@@ -129,7 +129,8 @@ class MarketappClient:
             if status in (401, 403):
                 raise MarketappAuthError("Marketapp authentication failed; check MARKETAPP_API_TOKEN", status)
             # 429 means the request was not processed, so it is safe to repeat even for POST.
-            retryable = status == 429 or (status in RETRY_STATUSES and method == "GET")
+            retryable = (status == 429 or (status in RETRY_STATUSES and method == "GET")
+                         or (status == 503 and retry_post_503))
             if retryable and attempt + 1 < retries:
                 wait = self._retry_after(response)
                 await asyncio.sleep(max(wait or 0, 2 ** attempt + random.random()))
@@ -237,17 +238,18 @@ class MarketappClient:
 
     # ------------------------------------------------------------------ Telegram display (no fragment.com)
     async def tg_connect(self, customer_id: str) -> dict:
-        return await self._request("POST", "/v1/rent/tg/connect/", json={"customer_id": customer_id}, retries=2)
+        return await self._request("POST", "/v1/rent/tg/connect/", json={"customer_id": customer_id}, retries=3,
+                                   retry_post_503=True)
 
     async def tg_status(self, customer_id: str) -> dict:
-        return await self._request("GET", "/v1/rent/tg/status/", params={"customer_id": customer_id}, retries=2)
+        return await self._request("GET", "/v1/rent/tg/status/", params={"customer_id": customer_id}, retries=1)
 
     async def tg_disconnect(self, customer_id: str) -> dict:
         return await self._request("POST", "/v1/rent/tg/disconnect/", json={"customer_id": customer_id}, retries=1)
 
     async def tg_display(self, nft_address: str, customer_id: str) -> dict:
         return await self._request("POST", f"/v1/rent/tg/{self._address(nft_address)}/display/",
-                                   json={"customer_id": customer_id}, retries=1)
+                                   json={"customer_id": customer_id}, retries=2, retry_post_503=True)
 
     # ------------------------------------------------------------------ renting
     async def pay(self, nft_address: str, duration: int, price_per_day_nano: str, sale_during_rent: bool = False) -> dict:
