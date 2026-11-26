@@ -98,6 +98,15 @@ def create_app() -> FastAPI:
         return JSONResponse({"url": s.webapp_base, "name": s.app_name, "iconUrl": f"{s.webapp_base}/static/img/icon.png"},
                             headers={"Access-Control-Allow-Origin": "*"})
 
+    @app.middleware("http")
+    async def revalidate_static(request, call_next):
+        # Telegram's WebView caches /static aggressively; force revalidation (ETag → cheap 304)
+        # so a redeploy is picked up immediately instead of mixing new HTML with old CSS/JS.
+        response = await call_next(request)
+        if request.url.path.startswith(("/static/", "/locales/")):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     app.mount("/locales", StaticFiles(directory=ROOT / "locales"), name="locales")
     app.mount("/static", StaticFiles(directory=WEBAPP), name="static")
 

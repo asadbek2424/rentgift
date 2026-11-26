@@ -968,7 +968,9 @@ function langSheet() {
 function hideSplash() {
   const el = $('#splash');
   if (!el) return;
-  setTimeout(() => { el.classList.add('hide'); setTimeout(() => el.remove(), 320); }, Math.max(0, 1200 - performance.now()));
+  // keep it up until the chest has opened and the gifts are out (~3.4 s from page start), then fade
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(() => { el.classList.add('hide'); setTimeout(() => el.remove(), 380); }, Math.max(0, (reduce ? 600 : 3400) - performance.now()));
 }
 
 // Telegram safe areas (Bot API 8.0+, fullscreen): expose them to CSS as --tg-top / --tg-bottom.
@@ -1011,4 +1013,6 @@ async function boot() {
   hideSplash();
 }
 
-boot();
+// Never leave the user stuck on the splash: hide it even if boot fails or hangs.
+boot().catch((e) => { console.error(e); hideSplash(); });
+setTimeout(hideSplash, 15000);
