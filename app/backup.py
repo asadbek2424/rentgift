@@ -134,25 +134,31 @@ async def send_to_admins(bot, path: Path, caption: str = "") -> int:
 
 
 async def backup_loop(ctx) -> None:
+    """Settings are re-read every minute, so interval / on-off changes from the admin panel apply without a restart."""
     settings = get_settings()
-    if settings.backup_interval_hours <= 0:
-        return
-    interval = settings.backup_interval_hours * 3600
     folder = Path(settings.backup_dir)
     # first backup shortly after start unless a fresh one already exists
-    newest = max((p.stat().st_mtime for p in folder.glob("giftrent-*.gz")), default=0) if folder.exists() else 0
-    wait = max(60.0, interval - (datetime.now().timestamp() - newest)) if newest else 60.0
+    last = max((p.stat().st_mtime for p in folder.glob("giftrent-*.gz")), default=0) if folder.exists() else 0
+    started = datetime.now().timestamp()
     while True:
-        await asyncio.sleep(wait)
+        await asyncio.sleep(60)
+        hours = settings.backup_interval_hours
+        if hours <= 0:
+            continue
+        now = datetime.now().timestamp()
+        due = (last + hours * 3600) if last else started + 60
+        if now < due:
+            continue
         try:
             path = await make_backup()
+            last = now
             if settings.backup_send_to_admins:
                 await send_to_admins(ctx.bot, path)
         except asyncio.CancelledError:
             raise
         except Exception:
             log.exception("Backup failed")
-        wait = interval
+            last = now   # don't retry every minute; try again next interval
 
 
 # ---------------------------------------------------------------------------- restore (JSON)

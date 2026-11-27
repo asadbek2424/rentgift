@@ -384,3 +384,79 @@ async def message_user(user_id: int, body: MessageBody, admin: CurrentUser = Dep
         raise HTTPException(400, detail={"code": "generic", "error": f"Yuborilmadi: {str(exc)[:120]}"}) from None
     log.info("Admin %s messaged user %s", admin.id, user_id)
     return {"ok": True}
+
+
+
+# ---------------------------------------------------------------------------- runtime settings (no redeploy)
+class ConfigBody(BaseModel):
+    values: dict
+
+
+class ResetBody(BaseModel):
+    key: str
+
+
+async def _system_status() -> list[dict]:
+    """Read-only health of things that stay in Railway (secrets are never returned, only whether they are set)."""
+    ctx = get_context()
+    s = ctx.settings
+    from . import userbot
+    ub = userbot.status.get("state", "off")
+    db_kind = "PostgreSQL" if s.database_url.startswith("postgresql") else "SQLite"
+    rows = [
+        ("Telegram bot", bool(ctx.bot), f"@{ctx.bot_username}" if ctx.bot_username else "BOT_TOKEN yo'q yoki RUN_BOT=false"),
+        ("Marketapp API token", bool(s.marketapp_api_token) or s.demo_mode, "o'rnatilgan" if s.marketapp_api_token else ("demo" if s.demo_mode else "MARKETAPP_API_TOKEN yo'q")),
+        ("Admin hamyoni", bool(s.admin_wallet_address), (s.admin_wallet_address[:6] + "…" + s.admin_wallet_address[-4:]) if s.admin_wallet_address else "ADMIN_WALLET_ADDRESS yo'q"),
+        ("Hamyon rejimi", True, "hot (server imzolaydi)" if s.wallet_mode == "hot" else "TON Connect (siz imzolaysiz)"),
+        ("Hot hamyon", s.wallet_mode != "hot" or ctx.hot_wallet is not None, "ishlamoqda" if ctx.hot_wallet is not None else ("kerak emas" if s.wallet_mode != "hot" else "HOT_WALLET_MNEMONIC xato")),
+        ("CardXabar userbot", ub == "on", {"on": "ulangan " + userbot.status.get("me", ""), "off": "ulanmagan (/userbot)", "bad": "sessiya eskirgan — /userbot",
+                                           "no_bot": "CARD_NOTIFY_BOTS topilmadi", "no_api": "USERBOT_API_ID/HASH yo'q", "error": "xato, qayta ulanmoqda"}.get(ub, ub)),
+        ("Baza", True, db_kind + (" — Railway'da PostgreSQL tavsiya etiladi" if db_kind == "SQLite" and not s.demo_mode else "")),
+        ("Mini App manzili", s.webapp_base.startswith("https://"), s.webapp_base),
+        ("Adminlar", bool(s.admin_ids), f"{len(s.admin_ids)} ta (ADMIN_IDS)"),
+        ("Rejim", not s.demo_mode, "DEMO — haqiqiy pul harakati yo'q" if s.demo_mode else "jonli"),
+    ]
+    return [{"name": n, "ok": bool(ok), "detail": d} for n, ok, d in rows]
+
+
+@router.get("/config")
+async def config_get(admin: CurrentUser = Depends(admin_user)):
+    from . import runtime_config
+    return {**await runtime_config.describe(), "status": await _system_status()}
+
+
+@router.post("/config")
+async def config_save(body: ConfigBody, admin: CurrentUser = Depends(admin_user)):
+    from . import runtime_config
+    try:
+        changed = await runtime_config.save(body.values, admin.id)
+    except runtime_config.ConfigError as exc:
+        raise HTTPException(400, detail={"code": "generic", "error": str(exc), "field": exc.key}) from None
+    await _after_change(changed)
+    return {"ok": True, "changed": changed}
+
+
+@router.post("/config/reset")
+async def config_reset(body: ResetBody, admin: CurrentUser = Depends(admin_user)):
+    from . import runtime_config
+    try:
+        await runtime_config.reset(body.key, admin.id)
+    except runtime_config.ConfigError as exc:
+        raise HTTPException(400, detail={"code": "generic", "error": str(exc)}) from None
+    await _after_change([body.key])
+    return {"ok": True}
+
+
+async def _after_change(changed: list[str]) -> None:
+    """Side effects for settings that are used once at startup."""
+    ctx = get_context()
+    if "card_notify_bots" in changed:
+        from . import userbot
+        userbot.request_restart()
+    if "app_name" in changed and ctx.bot is not None and ctx.settings.webapp_base.startswith("https://"):
+        from aiogram.types import MenuButtonWebApp, WebAppInfo
+        try:
+            await ctx.bot.set_chat_menu_button(menu_button=MenuButtonWebApp(
+                text=ctx.settings.app_name[:16], web_app=WebAppInfo(url=ctx.settings.webapp_base + "/")))
+        except Exception:  # noqa: BLE001
+            log.warning("Could not update the bot menu button")

@@ -31,7 +31,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Sozlamalar" subtitle="To'lov kartasi, hamyon, zaxira nusxa va ulanish" />
+      <PageHeader title="Karta va hamyon" subtitle="To'lov kartasi, admin hamyoni, zaxira nusxa va ulanish" />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <Section icon={CreditCard} title="To'lov kartasi" subtitle="Mijozlar shu kartaga o'tkazadi (Mini App va botda ko'rinadi)">
           <div className="space-y-3">

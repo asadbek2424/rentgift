@@ -263,3 +263,10 @@ https://<bot>.up.railway.app/admin/  → Admin panel
 Qo'shimcha sozlash shart emas: `ADMIN_PANEL_URL` bo'sh bo'lsa, bot tugmalari va `/panel` buyrug'i avtomatik `/admin/` ni ochadi.
 `VITE_API_URL`, `ADMIN_PANEL_ORIGINS` kerak emas (bir xil domen). Panelga kirish: botga `/panel` → «🔐 Panelni ochish»,
 yoki Telegram ID → kod, yoki `ADMIN_PANEL_PASSWORD`. Xohlasangiz, panelni Vercel'ga ham alohida qo'yish mumkin (`admin-panel/README.md`).
+
+## Admin panel → «Bot sozlamalari» (Railway'siz o'zgartirish)
+Bot nomi, yordam/kanal/oferta, standart til, to'lov muddati, noyob summa, ochiq buyurtmalar limiti, karta oxirgi 4 raqami,
+balans chegaralari, avto-tasdiq (CardXabar), xavfsizlik chegaralari (faqat kamaytirish), AUTO_RENT va zaxira sozlamalari
+paneldan o'zgartiriladi va darhol ishlaydi. Railway'dagi qiymat standart bo'lib qoladi; «Railway qiymatiga qaytarish» bilan
+panel o'zgarishini bekor qilasiz. Har bir o'zgarish tarixda saqlanadi. Maxfiy kalitlar (tokenlar, hamyon, mnemonic,
+userbot sessiyasi, ADMIN_IDS, DATABASE_URL) faqat Railway'da — panelda faqat ularning holati ko'rinadi.

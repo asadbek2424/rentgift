@@ -48,6 +48,8 @@ async def lifespan(app: FastAPI):
     setup_logging()
     settings = get_settings()
     await init_db()
+    from . import runtime_config
+    await runtime_config.apply_all()      # admin-panel overrides on top of Railway/.env values
     ctx = build_context()
     tasks: list[asyncio.Task] = []
     if settings.run_bot and settings.bot_token:

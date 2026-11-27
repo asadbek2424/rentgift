@@ -83,15 +83,36 @@ function clearTimers() {
 
 // ------------------------------------------------------------------ sheets
 let sheetStack = [];
+
+// While a sheet is open the page behind must not scroll (phones chain the scroll to <body> otherwise).
+let lockedY = 0;
+function lockScroll() {
+  if (document.body.classList.contains('scroll-locked')) return;
+  lockedY = window.scrollY;
+  document.body.style.top = `-${lockedY}px`;
+  document.body.classList.add('scroll-locked');
+}
+function unlockScroll() {
+  if (!document.body.classList.contains('scroll-locked')) return;
+  document.body.classList.remove('scroll-locked');
+  document.body.style.top = '';
+  window.scrollTo(0, lockedY);
+}
+
 export function openSheet(html, mount) {
   const root = $('#sheet-root');
   const overlay = document.createElement('div');
   overlay.className = 'overlay';
   overlay.innerHTML = `<div class="sheet" role="dialog"><button class="sheet-close" aria-label="close">${icons.close}</button>${html}</div>`;
-  const close = () => { overlay.remove(); sheetStack = sheetStack.filter(c => c !== close); syncBackButton(); };
+  const close = () => {
+    overlay.remove(); sheetStack = sheetStack.filter(c => c !== close);
+    if (!sheetStack.length) unlockScroll();
+    syncBackButton();
+  };
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
   $('.sheet-close', overlay).onclick = close;
   root.append(overlay);
+  lockScroll();
   sheetStack.push(close);
   syncBackButton();
   mount?.($('.sheet', overlay), close);
@@ -191,6 +212,7 @@ export function openOrder(id) {
 
 export async function render() {
   clearTimers();
+  if (!sheetStack.length) unlockScroll();
   renderTopbar();
   renderTabbar();
   syncBackButton();

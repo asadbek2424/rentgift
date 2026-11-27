@@ -65,8 +65,8 @@ async def run_userbot(ctx: AppContext) -> None:
         log.error("telethon is not installed; add it to requirements")
         return
 
-    usernames = settings.card_bot_usernames
     while True:
+        usernames = settings.card_bot_usernames   # re-read: the admin panel may change CARD_NOTIFY_BOTS
         session_string = await current_session(settings)
         if not session_string:
             status.update(state="off", me="")

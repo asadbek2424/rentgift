@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate, Outlet, Navigate } from 'react-route
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Wallet, Users, Megaphone, ScrollText, Settings, Search, Bot, Menu, X, LogOut, RefreshCw,
-  ShoppingBag, Star, Calculator, ExternalLink,
+  ShoppingBag, Star, Calculator, ExternalLink, SlidersHorizontal,
 } from 'lucide-react';
 import { Avatar, Toast } from './ui.jsx';
 import { useApi, getSession, getAdmin, clearSession, api } from '../data/api.js';
@@ -24,7 +24,8 @@ const NAV = (c = {}) => [
   ] },
   { group: 'Tizim', items: [
     { to: '/activity', label: 'Faoliyat logi', icon: ScrollText },
-    { to: '/settings', label: 'Sozlamalar', icon: Settings },
+    { to: '/bot-settings', label: 'Bot sozlamalari', icon: SlidersHorizontal },
+    { to: '/settings', label: 'Karta va hamyon', icon: Settings },
   ] },
 ];
 

@@ -1009,3 +1009,8 @@ body { background: var(--bg); }
   box-shadow: inset 0 0 0 1.5px rgba(64, 160, 255, .85), 0 0 18px -4px rgba(31, 140, 245, .8); }
 .tab.active svg { color: #4aa8ff; filter: drop-shadow(0 0 6px rgba(74, 168, 255, .8)); }
 .view { padding-bottom: calc(var(--nav-h) + 40px + var(--safe-bottom)); }
+
+/* ---- no scroll bleed behind open sheets ---- */
+body.scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overflow: hidden; }
+.overlay { overscroll-behavior: contain; touch-action: none; }
+.sheet { overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
