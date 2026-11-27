@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gift, User, Lock, Eye, EyeOff, Server, Send, ChevronDown, MessageSquareCode } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, Server, Send, ChevronDown, MessageSquareCode } from 'lucide-react';
 import { api, getApiBase, setApiBase, setSession, getSession } from '../data/api.js';
 
 export default function Login() {
@@ -74,9 +74,9 @@ export default function Login() {
     <div className="grid min-h-screen place-items-center p-4">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="glass-strong w-full max-w-md rounded-3xl p-7">
         <div className="flex items-center gap-3">
-          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-sky-400 to-blue-700 text-white shadow-lg"><Gift size={24} /></span>
+          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-900 shadow-lg"><img src="./logo.webp" alt="" className="h-8 w-8" /></span>
           <div>
-            <h1 className="text-xl font-bold">GiftRent Admin</h1>
+            <h1 className="text-xl font-bold">RentaGift Admin</h1>
             <p className="text-sm text-slate-500">Boshqaruv paneliga kirish</p>
           </div>
         </div>

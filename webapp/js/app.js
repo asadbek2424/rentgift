@@ -120,7 +120,7 @@ const TAB_LABEL = { catalog: 'nav.market', rentals: 'nav.inventory', activity: '
 function pageTitle() {
   if (state.view?.name === 'order') return t('order.title', { id: state.view.id });
   if (state.view) return t(`nav.${state.view.name}`);
-  return state.tab === 'catalog' ? '' : t(TAB_LABEL[state.tab] || `nav.${state.tab}`);
+  return ['catalog', 'profile'].includes(state.tab) ? '' : t(TAB_LABEL[state.tab] || `nav.${state.tab}`);
 }
 
 function pageSub() {
@@ -180,7 +180,7 @@ export function openView(name, extra = {}) {
   window.scrollTo({ top: 0 });
 }
 
-const helpers = () => ({ state, render, renderTopbar, openSheet, toast, errText, esc, giftImage, statusBadge, copy, haptic,
+const helpers = () => ({ state, exactBox, render, renderTopbar, openSheet, toast, errText, esc, giftImage, statusBadge, copy, haptic,
   openView, switchTab, openTg, openLink });
 
 export function openOrder(id) {
@@ -234,9 +234,19 @@ function banner() {
     <div class="banner-art">${art.card}</div></button>`;
 }
 
+// Category bar (Gift · Username · Raqam · Stars) with glowing outline icons.
+const CAT_ICON = {
+  gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="8" width="17" height="5" rx="1.4" fill="currentColor" fill-opacity=".35"/><path d="M5 13v6.2c0 .8.6 1.3 1.3 1.3h11.4c.7 0 1.3-.5 1.3-1.3V13" fill="currentColor" fill-opacity=".55"/><path d="M12 8v12.5"/><path d="M12 8C10.6 4.6 7 4 7 6.4 7 8 9.6 8 12 8Zm0 0c1.4-3.4 5-4 5-1.6C17 8 14.4 8 12 8Z"/></svg>',
+  username: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4.2"/><path d="M4.5 20.2c0-3.9 3.4-6.4 7.5-6.4s7.5 2.5 7.5 6.4c0 .4-.3.8-.8.8H5.3c-.5 0-.8-.4-.8-.8Z"/></svg>',
+  number: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.2 3.5h3.3l1.8 4.6-2.3 1.5a11.4 11.4 0 0 0 6.4 6.4l1.5-2.3 4.6 1.8v3.3a1.8 1.8 0 0 1-1.9 1.8A16.4 16.4 0 0 1 3.4 5.4a1.8 1.8 0 0 1 1.8-1.9Z"/></svg>',
+  stars: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.2 14.6 8.6l5.9.8-4.3 4.1 1 5.9L12 16.6l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8Z"/></svg>',
+};
+const catLabel = c => t(`cat.${c}`).replace(/^[^\p{L}]+/u, '').trim();
+
 function categoryTabs() {
-  return `<div class="cat-tabs">${['gift', 'username', 'number', 'stars'].map(c =>
-    `<button class="${state.category === c ? 'active' : ''}" data-cat="${c}">${esc(t(`cat.${c}`))}</button>`).join('')}</div>`;
+  return `<div class="cat-bar" role="tablist">${['gift', 'username', 'number', 'stars'].map((c, i) =>
+    `${i ? '<i class="cat-sep"></i>' : ''}<button role="tab" class="cat-${c} ${state.category === c ? 'active' : ''}" data-cat="${c}" aria-selected="${state.category === c}">
+      <span class="cat-ico">${CAT_ICON[c]}</span><span class="cat-lbl">${esc(catLabel(c))}</span></button>`).join('')}</div>`;
 }
 
 function bindCategoryTabs(view) {
@@ -395,8 +405,7 @@ function filterPills() {
   const f = state.filters, n = f.collections.length;
   const pill = (attrs, label, on) => `<button class="fpill ${on ? 'on' : ''}" ${attrs}><span>${esc(label)}</span>${icons.chevronDown}</button>`;
   const colLabel = n === 1 ? f.collections[0].name : n ? `${t('catalog.collections_btn')} · ${n}` : t('catalog.collections_btn');
-  const trait = key => pill(`data-pick="${key}"`, f[key] ? `${t(`gift.${key}`)}: ${f[key]}` : t(`gift.${key}`), !!f[key]);
-  return `<div class="fpills">${pill('id="open-cols"', colLabel, n > 0)}${trait('model')}${trait('backdrop')}${trait('symbol')}
+  return `<div class="fpills">${pill('id="open-cols"', colLabel, n > 0)}
     <button class="fpill icon" id="open-sort" aria-label="${esc(t('catalog.sort_btn'))}">${icons.sort}</button></div>`;
 }
 
@@ -421,7 +430,7 @@ async function catalogView(view) {
     if (state.tab !== 'catalog' || state.segment !== 'all' || state.view) return;
     const nFil = filterCount();
     // price / item-number filters have no pill of their own: show them as removable chips
-    const chips = activeChips().filter(([k]) => k === 'price' || k === 'num');
+    const chips = activeChips().filter(([k]) => !k.startsWith('col:'));
     const chipRow = chips.length ? `<div class="chips">${chips.map(([k, label]) =>
       `<button class="chip active" data-rm="${esc(k)}">${esc(label)} ${icons.x}</button>`).join('')}</div>` : '';
     view.innerHTML = banner() + categoryTabs()
@@ -601,7 +610,6 @@ function giftSheet(g) {
         <div class="attr-row"><span>${esc(t('gift.duration'))}</span><b><em class="pct">${esc(t('gift.limits', { min: g.min_days, max: g.max_days }))}</em></b></div>
       </div>
       <div class="gd-actions">
-        <button id="gd-view">${flat.eye}<span>${esc(t('ui.view'))}</span></button>
         <button id="gd-share">${flat.share}<span>${esc(t('ui.share'))}</span></button>
         <button id="gd-cart" class="${inCart(g.address) ? 'on' : ''}">${flat.basket}<span>${esc(t(inCart(g.address) ? 'ui.in_cart' : 'ui.to_cart'))}</span></button>
       </div>
@@ -615,8 +623,8 @@ function giftSheet(g) {
     <div class="sticky-cta"><button class="btn" id="rent">${esc(t('gift.rent'))}</button></div>`;
   openSheet(html, (sheet, close) => {
     sheet.classList.add('gift-sheet');
+    sheet.parentElement.classList.add('gift-ov');   // see-through backdrop: the gift floats over the blurred app
     let seq = 0;
-    $('#gd-view', sheet).onclick = () => openLink(`https://tonviewer.com/${encodeURIComponent(g.address)}`);
     $('#gd-share', sheet).onclick = () => {
       const bot = state.me?.app?.bot_username;
       const url = bot ? `https://t.me/${bot}?startapp=g_${g.address}` : location.href;
@@ -641,7 +649,7 @@ function giftSheet(g) {
         const q = await api.quote(g.address, days);
         if (mine !== seq) return;
         $('#bd', sheet).innerHTML = breakdown(q.per_day_uzs, q.days, q.service_fee_uzs || 0, q.amount_uzs);
-        $('#ton', sheet).textContent = t('gift.ton_hint', { ton: q.ton_total });
+        $('#ton', sheet).textContent = '';
         $('#rent', sheet).textContent = t('ui.rent_for', { price: money(q.amount_uzs) });
         $('#rent', sheet).disabled = false;
       } catch (e) {
@@ -677,6 +685,21 @@ function stepsHtml(status, kind = 'rent') {
   }).join('')}</div>`;
 }
 
+// "Transfer exactly this amount" box: big amount with the +N tag highlighted, why it matters, auto-confirm line.
+export function exactBox(amount, add) {
+  const fmtN = n => Number(n).toLocaleString('ru-RU').replace(/,/g, ' ');
+  const base = amount - (add || 0);
+  const str = fmtN(amount), tail = add ? String(add).length : 0;   // highlight the last digits of the exact amount
+  const auto = state.me?.app?.auto_payments;
+  return `<div class="exact-box">
+    <div class="ex-head">${flat.alert}<b>${esc(t('pay.exact_title'))}</b></div>
+    <div class="ex-sum">${tail ? `${esc(str.slice(0, -tail))}<em>${esc(str.slice(-tail))}</em>` : esc(str)}<span>${esc(t('common.sum'))}</span></div>
+    ${add ? `<p class="ex-why">${t('pay.exact_why', { add: esc(String(add)) })}</p>
+      <p class="ex-bad">${flat.minus}${esc(t('pay.exact_bad', { round: money(base) }))}</p>` : `<p class="ex-why">${esc(t('pay.exact_plain'))}</p>`}
+  </div>
+  <div class="ex-auto ${auto ? '' : 'manual'}">${auto ? flat.check : flat.clock}<span>${esc(t(auto ? 'pay.auto_line' : 'pay.manual_line'))}</span></div>`;
+}
+
 function waiting(text) { return `<div class="card"><div class="waiting"><div class="spinner"></div><p>${esc(text)}</p></div></div>`; }
 
 function paymentCard(o) {
@@ -698,8 +721,7 @@ function paymentCard(o) {
       <button class="copy-btn" data-copy="${esc(card.number.replace(/\s/g, ''))}">${esc(t('common.copy'))}</button></div>
     ${card.holder ? `<div class="kv mt"><span>${esc(t('pay.holder'))}</span><b>${esc(card.holder)}</b></div>` : ''}
     ${card.bank ? `<div class="kv"><span>${esc(t('pay.bank'))}</span><b>${esc(card.bank)}</b></div>` : ''}
-    <p class="note ${o.unique_add_uzs ? 'warn' : ''}">${esc(o.unique_add_uzs ? t('pay.unique', { add: o.unique_add_uzs }) : t('pay.exact'))}</p>
-    ${state.me?.app?.auto_payments ? `<p class="note" style="color:#6fe39a">🤖 ${esc(t('pay.auto'))}</p>` : ''}
+    ${exactBox(o.amount_uzs, o.unique_add_uzs || 0)}
     <div class="waiting"><div class="spinner"></div><p>${esc(t('wallet.waiting'))}</p></div></div>`)
     + `<button class="btn ghost mt" id="cancel">${esc(t('pay.cancel'))}</button>`;
 }
@@ -1057,57 +1079,69 @@ function guideView(view) {
 // ------------------------------------------------------------------ profile
 function profileView(view) {
   const { user, app, rentals } = state.me;
-  const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'User';
-  const row = (id, shape, color, label, value = '') => `<button class="menu-row" data-row="${id}">${glow(shape, color, 34)}
+  const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || 'User';
+  const num = v => Number(v || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
+  const sumTag = `<span class="sum-ico">${esc(t('common.sum'))}</span>`;
+  // Stat tile: glow icon + value on one line, grey label under it (as in the mockup).
+  const tile = (id, shape, color, value, label, key, money_ = false) => `<button class="pf-tile" data-row="${id}">
+    <div class="pf-tv">${glow(shape, color, 30)}<b id="pf-${key}">${esc(value)}</b>${money_ ? sumTag : ''}</div><span>${esc(label)}</span></button>`;
+  const big = user.photo_url
+    ? `<img src="${esc(user.photo_url)}" alt="" referrerpolicy="no-referrer">`
+    : `<span>${esc(((user.first_name || user.username || '?')[0] || '?').toUpperCase())}</span>`;
+  const row = (id, shape, color, label, value = '') => `<button class="menu-row" data-row="${id}">${glow(shape, color, 30)}
     <span class="label">${esc(label)}</span><span class="value">${esc(value)}</span><span class="chev">${icons.chevronRight}</span></button>`;
-  const stat = (id, shape, color, value, label, key = '') => `<button class="stat-card" ${id ? `data-row="${id}"` : ''}>
-    ${glow(shape, color, 36)}<div><b ${key ? `id="ps-${key}"` : ''}>${esc(value)}</b><span>${esc(label)}</span></div></button>`;
-  view.innerHTML = `<div class="pf-head">${avatarHtml(user)}<div><h2>${esc(name)}</h2>${user.username ? `<p>@${esc(user.username)}</p>` : ''}</div></div>
-    <div class="quick">
-      <button data-row="rentals">${glow('ticket', 'blue', 46)}<span>${esc(t('nav.inventory'))}</span></button>
-      <button data-row="market">${glow('bag', 'green', 46)}<span>${esc(t('nav.market'))}</span></button>
-      <button data-row="cart">${glow('bag', 'orange', 46)}<span>${esc(t('nav.cart'))}</span></button>
-      <button data-row="referral">${glow('users', 'blue', 46)}<span>${esc(t('profile.referral'))}</span></button>
+
+  view.innerHTML = `
+    <div class="pf-hero">
+      <div class="pf-ava">${big}</div>
+      <h2>${esc(user.username ? user.username : name)}</h2>
+      <p>#${esc(user.id)}</p>
     </div>
-    <div class="stat-grid">
-      ${stat('balance', 'wallet', 'green', money(user.balance_uzs || 0), t('profile.balance'))}
-      ${stat('rentals', 'ticket', 'blue', String(rentals), t('profile.active'))}
-      ${stat('top', 'card', 'orange', money(user.spent_uzs || 0), t('profile.spent'))}
-      ${stat('referral', 'users', 'violet', '…', t('ref.invited'), 'invited')}
-      ${stat('referral', 'wallet', 'blue', '…', t('ref.earned'), 'earned')}
-      ${stat('top', 'trophy', 'orange', '…', t('profile.rank'), 'rank')}
+    <div class="pf-grid">
+      ${tile('activity', 'ticket', 'blue', '…', t('pf.all_orders'), 'orders')}
+      ${tile('referral', 'users', 'blue', '…', t('pf.total_refs'), 'refs')}
+      ${tile('rentals', 'bag', 'green', num(rentals), t('pf.active_now'), 'active')}
+      ${tile('balance', 'wallet', 'green', num(user.balance_uzs), t('pf.balance'), 'bal', true)}
+      ${tile('premium', 'bag', 'orange', '…', t('pf.purchases'), 'buys')}
+      ${tile('top', 'card', 'orange', num(user.spent_uzs), t('pf.spent'), 'spent', true)}
     </div>
-    <button class="ref-card" data-row="referral"><h3>${esc(t('profile.ref_cta'))}</h3>
-      <div class="info">${glow('users', 'green', 34)}<div><b>${esc(t('profile.referral'))}</b><small>${esc(t('profile.referral_d'))}</small></div>
-      <span class="chev">${icons.chevronRight}</span></div></button>
+    <div class="pf-invite">
+      <h3 id="pf-inv-title">${esc(t('pf.invite_title', { p: '…' }))}</h3>
+      <button class="pf-perk" data-row="referral">${glow('wallet', 'green', 34)}<div><b>${esc(t('pf.earn_t'))}</b><small id="pf-earn">…</small></div></button>
+      <button class="pf-perk" data-row="top">${glow('ticket', 'violet', 34)}<div><b>${esc(t('pf.rank_t'))}</b><small id="pf-rank">…</small></div></button>
+      <button class="btn mt" data-row="referral">${esc(t('ref.share'))}</button>
+    </div>
+    <div class="section-title">${esc(t('pf.settings'))}</div>
     <div class="menu">
-      ${row('activity', 'ticket', 'green', t('nav.activity'), String(rentals))}
-      ${row('top', 'trophy', 'orange', t('profile.top'))}
+      ${row('topup', 'card', 'green', t('profile.topup'))}
       ${row('guide', 'book', 'blue', t('profile.guide'))}
-      ${row('premium', 'star', 'violet', t('profile.premium'))}
       ${row('lang', 'globe', 'blue', t('profile.lang'), t('lang.name'))}
       ${app.support ? row('support', 'chat', 'blue', t('profile.chat')) : ''}
       ${app.channel ? row('channel', 'bell', 'orange', t('profile.channel'), '@' + app.channel) : ''}
       ${app.offer_url ? row('offer', 'doc', 'orange', t('profile.offer')) : ''}
       ${user.is_admin ? row('admin', 'key', 'red', t('nav.admin')) : ''}
     </div>
-    <button class="btn" data-row="topup">${icons.plus.replace('<svg', '<svg width="18" height="18"')} ${esc(t('profile.topup'))}</button>
-    <p class="center muted" style="font-size:12px;line-height:1.5;padding:0 10px;margin-top:16px">${esc(t('profile.safe_note'))}</p>
-    <p class="center muted" style="font-size:12px">${esc(app.name)}</p>`;
+    <p class="center muted" style="font-size:12px;line-height:1.5;padding:0 10px;margin-top:16px">${esc(t('profile.safe_note'))}</p>`;
   const actions = {
     lang: langSheet, support: () => openTg(app.support), channel: () => openTg(app.channel),
-    rentals: () => switchTab('rentals'), activity: () => switchTab('activity'), market: () => switchTab('catalog'),
-    cart: () => openView('cart'), offer: () => openLink(app.offer_url), balance: () => openView('balance'),
-    topup: () => openView('balance'), referral: () => openView('referral'), top: () => openView('top'),
-    guide: () => openView('guide'), premium: () => { state.starsSeg = 'premium'; state.category = 'stars'; switchTab('catalog'); },
+    rentals: () => switchTab('rentals'), activity: () => switchTab('activity'),
+    offer: () => openLink(app.offer_url), balance: () => openView('balance'), topup: () => openView('balance'),
+    referral: () => openView('referral'), top: () => openView('top'), guide: () => openView('guide'),
+    premium: () => { state.starsSeg = 'premium'; state.category = 'stars'; switchTab('catalog'); },
     admin: () => (app.admin_panel_url ? openLink(app.admin_panel_url) : switchTab('admin')),
   };
   view.querySelectorAll('[data-row]').forEach(b => b.onclick = () => actions[b.dataset.row]?.());
-  // referral and rating numbers come from their own (read-only) endpoints
-  const fill = (key, value) => { const el = $(`#ps-${key}`, view); if (el) el.textContent = value; };
-  api.referral().then(r => { fill('invited', String(r.invited)); fill('earned', money(r.earned_uzs)); })
-    .catch(() => { fill('invited', '—'); fill('earned', '—'); });
-  api.top().then(r => fill('rank', r.me?.rank ? `#${r.me.rank}` : '—')).catch(() => fill('rank', '—'));
+  const fill = (id, text) => { const el = $(`#${id}`, view); if (el) el.textContent = text; };
+  api.orders().then(r => fill('pf-orders', num(r.items.length))).catch(() => fill('pf-orders', '—'));
+  api.purchases().then(r => fill('pf-buys', num((r.items || []).length))).catch(() => fill('pf-buys', '—'));
+  api.referral().then(r => {
+    const p = String(Number(r.percent) || 0);
+    fill('pf-refs', num(r.invited));
+    fill('pf-inv-title', t('pf.invite_title', { p }));
+    fill('pf-earn', t('pf.earn_d', { p, sum: money(r.earned_uzs) }));
+  }).catch(() => { fill('pf-refs', '—'); fill('pf-earn', ''); });
+  api.top().then(r => fill('pf-rank', t('pf.rank_d', { rank: r.me?.rank ? `#${r.me.rank}` : t('pf.rank_none') })))
+    .catch(() => fill('pf-rank', ''));
 }
 
 // ------------------------------------------------------------------ language
@@ -1140,9 +1174,9 @@ function langSheet() {
 function hideSplash() {
   const el = $('#splash');
   if (!el) return;
-  // keep it up until the chest has opened and the gifts are out (~3.4 s from page start), then fade
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  setTimeout(() => { el.classList.add('hide'); setTimeout(() => el.remove(), 380); }, Math.max(0, (reduce ? 600 : 3400) - performance.now()));
+  // wait until the intro animation (js/splash.js) has finished, then fade out
+  const go = () => { if (!el.isConnected) return; el.classList.add('hide'); setTimeout(() => el.remove(), 380); };
+  if (window.__splashDone) go(); else window.addEventListener('splash:done', go, { once: true });
 }
 
 // Telegram safe areas (Bot API 8.0+, fullscreen): expose them to CSS as --tg-top / --tg-bottom.
@@ -1168,7 +1202,7 @@ async function boot() {
     state.me = await api.me();
   } catch (e) {
     await loadLang(tg?.initDataUnsafe?.user?.language_code || 'uz');
-    $('#view').innerHTML = `<div class="card hero mt2"><div class="hero-art">${art.giftBox}</div><h2>GiftRent</h2><p>${esc(errText(e))}</p></div>`;
+    $('#view').innerHTML = `<div class="card hero mt2"><div class="hero-art">${art.giftBox}</div><h2>RentaGift</h2><p>${esc(errText(e))}</p></div>`;
     hideSplash();
     return;
   }

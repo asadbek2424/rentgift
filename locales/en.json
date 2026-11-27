@@ -135,7 +135,13 @@
     "cancel_confirm": "Cancel this order?",
     "no_card": "The payment card is not configured yet. Please contact support.",
     "auto": "Payment is confirmed automatically, usually within a minute. No receipt needed.",
-    "unique": "The +{add} UZS at the end identifies your payment automatically. Transfer exactly this amount, otherwise confirmation is delayed."
+    "unique": "The +{add} UZS at the end identifies your payment automatically. Transfer exactly this amount, otherwise confirmation is delayed.",
+    "exact_title": "Transfer exactly this amount",
+    "exact_why": "The <b>+{add} so'm</b> at the end is your payment tag — the bot uses it to recognise your transfer automatically.",
+    "exact_bad": "If you send {round} or any other amount, the payment won't be matched and confirmation will be delayed.",
+    "exact_plain": "Transfer the amount exactly, without changing it.",
+    "auto_line": "Confirmed automatically as soon as the money arrives — no receipt needed.",
+    "manual_line": "After payment an admin will check and confirm it."
   },
   "review": {
     "text": "Receipt received. The admin is checking the payment — usually 5–15 minutes. The bot will message you once it is confirmed."
@@ -637,5 +643,20 @@
     "dispute": "Dispute",
     "rent_open": "Open",
     "share_text": "Rent this gift"
+  },
+  "pf": {
+    "all_orders": "All orders",
+    "total_refs": "Total referrals",
+    "active_now": "Active rentals",
+    "balance": "Balance",
+    "purchases": "Stars / Premium",
+    "spent": "Value of purchases",
+    "invite_title": "Invite your friends and earn {p}% of their payments",
+    "earn_t": "Earnings per payment",
+    "earn_d": "Every time a friend pays, {p}% goes straight to your balance · earned: {sum}",
+    "rank_t": "Top rating",
+    "rank_d": "Most active buyers — your place: {rank}",
+    "rank_none": "after your first purchase",
+    "settings": "Settings"
   }
 }

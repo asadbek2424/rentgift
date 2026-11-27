@@ -5,133 +5,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
   <meta name="referrer" content="no-referrer">
-  <title>GiftRent</title>
+  <title>RentaGift</title>
+  <link rel="icon" href="/static/img/icon.png">
+  <link rel="preload" as="image" href="/static/img/chest.webp">
+  <link rel="preload" as="image" href="/static/img/splash/crown.webp">
+  <link rel="preload" as="image" href="/static/img/splash/left.webp">
+  <link rel="preload" as="image" href="/static/img/splash/right.webp">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <meta name="theme-color" content="#0f1115">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap">
-  <link rel="stylesheet" href="/static/css/app.css?v=20261127">
+  <link rel="stylesheet" href="/static/css/app.css?v=20261127l">
 </head>
 <body>
-  <!-- SplashScreen: chest opens, gifts fly out, nickname on top. Hidden by app.js once the first screen is ready. -->
-  <div id="splash" role="status" aria-label="GiftRent">
-    <div class="spl-logo">
-      <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
-        <rect x="9" y="20" width="30" height="22" rx="4" fill="#2B8CFF"/>
-        <rect x="6" y="13" width="36" height="9" rx="3" fill="#4AA8FF"/>
-        <rect x="21.5" y="13" width="5" height="29" fill="#fff"/>
-        <path d="M24 13c-3-7-12-8-10-1.5 1 3 6 2 10 1.5zM24 13c3-7 12-8 10-1.5-1 3-6 2-10 1.5z" fill="#fff"/>
-      </svg>
-      <b>GiftRent</b>
-    </div>
-    <div class="spl-user">
-      <div class="spl-avatar" id="spl-avatar">G</div>
-      <div><small>Salom, </small><b id="spl-name">Mehmon</b></div>
-    </div>
-
-    <div class="spl-stage">
-      <svg class="spl-rock" viewBox="0 0 320 150" aria-hidden="true">
-        <defs>
-          <linearGradient id="spl-rk1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D6E2FF"/><stop offset="1" stop-color="#7E8DB8"/></linearGradient>
-          <linearGradient id="spl-rk2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8F9CC6"/><stop offset="1" stop-color="#3B4566"/></linearGradient>
-          <linearGradient id="spl-rk3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B7C4EA"/><stop offset="1" stop-color="#55608A"/></linearGradient>
-        </defs>
-        <path d="M30 40 L90 18 L230 16 L295 38 L285 60 L35 62Z" fill="url(#spl-rk1)"/>
-        <path d="M35 62 L285 60 L300 95 L270 140 L60 142 L18 100Z" fill="url(#spl-rk2)"/>
-        <path d="M35 62 L120 61 L100 140 L60 142 L18 100Z" fill="url(#spl-rk3)" opacity=".75"/>
-        <path d="M200 60 L285 60 L300 95 L250 120Z" fill="#A9B6DE" opacity=".35"/>
-        <path d="M120 61 L160 141 M200 60 L215 141" stroke="#2C3452" stroke-width="2" opacity=".5"/>
-        <ellipse cx="160" cy="36" rx="118" ry="12" fill="#fff" opacity=".18"/>
-      </svg>
-      <div class="spl-rays"></div>
-      <div class="spl-glow"></div>
-      <div class="spl-chest">
-        <div class="spl-chest-in">
-          <svg class="spl-body" viewBox="0 0 240 140" aria-hidden="true">
-            <defs>
-              <linearGradient id="spl-cb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4A5078"/><stop offset="1" stop-color="#23273D"/></linearGradient>
-              <linearGradient id="spl-trim" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1E6FE8"/><stop offset=".5" stop-color="#6FBAFF"/><stop offset="1" stop-color="#1E6FE8"/></linearGradient>
-              <linearGradient id="spl-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE08A"/><stop offset="1" stop-color="#E09A1E"/></linearGradient>
-              <radialGradient id="spl-inside" cx=".5" cy=".2" r=".8"><stop offset="0" stop-color="#BFE3FF"/><stop offset=".5" stop-color="#2B8CFF"/><stop offset="1" stop-color="#1A1F33"/></radialGradient>
-            </defs>
-            <rect x="10" y="0" width="220" height="26" rx="6" fill="url(#spl-inside)"/>
-            <rect x="4" y="14" width="232" height="124" rx="14" fill="url(#spl-cb)"/>
-            <rect x="4" y="14" width="232" height="14" rx="6" fill="url(#spl-trim)"/>
-            <rect x="4" y="118" width="232" height="16" rx="6" fill="url(#spl-trim)" opacity=".9"/>
-            <rect x="28" y="14" width="18" height="122" rx="4" fill="#2B8CFF" opacity=".85"/>
-            <rect x="194" y="14" width="18" height="122" rx="4" fill="#2B8CFF" opacity=".85"/>
-            <circle cx="37" cy="50" r="3" fill="#CFE8FF"/><circle cx="37" cy="96" r="3" fill="#CFE8FF"/>
-            <circle cx="203" cy="50" r="3" fill="#CFE8FF"/><circle cx="203" cy="96" r="3" fill="#CFE8FF"/>
-            <path d="M46 60 H194 M46 92 H194" stroke="#1A1E30" stroke-width="2" opacity=".6"/>
-            <path d="M100 24 H140 V62 Q140 82 120 92 Q100 82 100 62Z" fill="url(#spl-gold)" stroke="#B8730F" stroke-width="2"/>
-            <rect x="110" y="44" width="20" height="16" rx="2" fill="#2B8CFF"/>
-            <rect x="108" y="39" width="24" height="6" rx="2" fill="#4AA8FF"/>
-            <rect x="118.5" y="39" width="3" height="21" fill="#fff"/>
-            <rect x="54" y="34" width="34" height="5" rx="2.5" fill="#fff" opacity=".18"/>
-          </svg>
-          <div class="spl-lid">
-            <svg viewBox="0 0 240 86" aria-hidden="true">
-              <defs><linearGradient id="spl-cl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5A6190"/><stop offset="1" stop-color="#2C3150"/></linearGradient></defs>
-              <path d="M4 84 V40 Q4 4 40 4 H200 Q236 4 236 40 V84Z" fill="url(#spl-cl)"/>
-              <path d="M4 70 H236 V84 H4Z" fill="url(#spl-trim)"/>
-              <rect x="28" y="6" width="18" height="78" rx="4" fill="#2B8CFF" opacity=".85"/>
-              <rect x="194" y="6" width="18" height="78" rx="4" fill="#2B8CFF" opacity=".85"/>
-              <path d="M100 84 V56 Q100 48 108 48 H132 Q140 48 140 56 V84Z" fill="url(#spl-gold)" stroke="#B8730F" stroke-width="2"/>
-              <path d="M56 18 Q120 6 184 18" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".16" fill="none"/>
-            </svg>
-          </div>
+  <!-- Splash: shield halves slam together, crown drops, logo rises, name + chest appear (js/splash.js). -->
+  <div id="splash" role="status" aria-label="RentaGift">
+    <div class="sp2-screen" id="sp2-screen">
+      <div class="sp2-stage" id="sp2-stage">
+        <div class="sp2-logo" id="sp2-logo">
+          <div class="sp2-glow" id="sp2-glow"></div>
+          <div class="sp2-ring" id="sp2-ring"></div>
+          <img class="sp2-left" id="sp2-L" src="/static/img/splash/left.webp" alt="">
+          <img class="sp2-right" id="sp2-R" src="/static/img/splash/right.webp" alt="">
+          <img class="sp2-crown" id="sp2-C" src="/static/img/splash/crown.webp" alt="">
         </div>
+        <div class="sp2-name" id="sp2-name">Renta<b>Gift</b></div>
+        <div class="sp2-chest" id="sp2-chest"><img src="/static/img/chest.webp" alt=""></div>
       </div>
-      <div class="spl-gift" style="--x:-130px;--y:10px;--r:-14deg;--d:2.0s"><div class="spl-gi"><svg viewBox="0 0 64 64"><use href="#spl-g-gift"/></svg></div></div>
-      <div class="spl-gift" style="--x:-40px;--y:-150px;--r:8deg;--d:2.1s"><div class="spl-gi"><svg viewBox="0 0 64 64"><use href="#spl-g-diamond"/></svg></div></div>
-      <div class="spl-gift" style="--x:30px;--y:-172px;--r:0deg;--s:1.15;--d:2.2s"><div class="spl-gi"><svg viewBox="0 0 64 64"><use href="#spl-g-crown"/></svg></div></div>
-      <div class="spl-gift" style="--x:100px;--y:-128px;--r:-8deg;--d:2.3s"><div class="spl-gi"><svg viewBox="0 0 64 64"><use href="#spl-g-star"/></svg></div></div>
-      <div class="spl-gift" style="--x:132px;--y:-45px;--r:12deg;--d:2.4s"><div class="spl-gi"><svg viewBox="0 0 64 64"><use href="#spl-g-heart"/></svg></div></div>
-      <div class="spl-gift" style="--x:122px;--y:150px;--r:-6deg;--s:1.2;--d:2.5s"><div class="spl-gi"><svg viewBox="0 0 64 64"><use href="#spl-g-bear"/></svg></div></div>
-      <i class="spl-spark" style="--x:-90px;--y:-140px;--d:2.0s"></i>
-      <i class="spl-spark" style="--x:80px;--y:-160px;--d:2.3s"></i>
-      <i class="spl-spark" style="--x:-30px;--y:-190px;--d:2.6s"></i>
-      <i class="spl-spark" style="--x:120px;--y:-90px;--d:2.15s"></i>
-      <i class="spl-spark" style="--x:-130px;--y:-80px;--d:2.45s"></i>
-      <i class="spl-spark" style="--x:30px;--y:-200px;--d:2.8s"></i>
     </div>
-    <div class="splash-bar"><i></i></div>
-
-    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-      <defs>
-        <linearGradient id="spl-gB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6FBAFF"/><stop offset="1" stop-color="#1E6FE8"/></linearGradient>
-        <linearGradient id="spl-gY" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE58A"/><stop offset="1" stop-color="#F2A516"/></linearGradient>
-        <linearGradient id="spl-gP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF8FB8"/><stop offset="1" stop-color="#E2336F"/></linearGradient>
-        <linearGradient id="spl-gC" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C9F3FF"/><stop offset="1" stop-color="#2FB4F0"/></linearGradient>
-        <linearGradient id="spl-gBr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C98B5A"/><stop offset="1" stop-color="#8A5430"/></linearGradient>
-      </defs>
-      <symbol id="spl-g-gift" viewBox="0 0 64 64"><rect x="10" y="28" width="44" height="30" rx="5" fill="url(#spl-gB)"/><rect x="6" y="19" width="52" height="12" rx="4" fill="#4AA8FF"/><rect x="28.5" y="19" width="7" height="39" fill="#fff"/><path d="M32 19c-4-10-17-11-14-2 1.5 4 8 3 14 2zM32 19c4-10 17-11 14-2-1.5 4-8 3-14 2z" fill="#fff"/></symbol>
-      <symbol id="spl-g-diamond" viewBox="0 0 64 64"><path d="M14 22 L22 10 H42 L50 22 L32 56Z" fill="url(#spl-gC)"/><path d="M14 22 H50 M22 10 L27 22 L32 56 L37 22 L42 10" stroke="#fff" stroke-width="1.6" opacity=".7" fill="none"/><path d="M22 10 L27 22 H14Z" fill="#fff" opacity=".45"/></symbol>
-      <symbol id="spl-g-crown" viewBox="0 0 64 64"><path d="M8 22 L20 34 L32 12 L44 34 L56 22 L50 50 H14Z" fill="url(#spl-gY)" stroke="#C47C0E" stroke-width="2" stroke-linejoin="round"/><rect x="13" y="48" width="38" height="7" rx="2" fill="#F2A516"/><circle cx="32" cy="38" r="4.5" fill="#E2336F"/><circle cx="21" cy="42" r="3" fill="#2B8CFF"/><circle cx="43" cy="42" r="3" fill="#2B8CFF"/></symbol>
-      <symbol id="spl-g-star" viewBox="0 0 64 64"><path d="M32 6 L39.5 23 L58 25 L44 37.5 L48 56 L32 46.5 L16 56 L20 37.5 L6 25 L24.5 23Z" fill="url(#spl-gY)" stroke="#C47C0E" stroke-width="2" stroke-linejoin="round"/><path d="M27 22 L32 12 L35 19" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".6" fill="none"/></symbol>
-      <symbol id="spl-g-heart" viewBox="0 0 64 64"><path d="M32 56 C10 42 4 30 8 20 C12 10 26 8 32 20 C38 8 52 10 56 20 C60 30 54 42 32 56Z" fill="url(#spl-gP)"/><ellipse cx="20" cy="22" rx="6" ry="4" fill="#fff" opacity=".45" transform="rotate(-30 20 22)"/></symbol>
-      <symbol id="spl-g-bear" viewBox="0 0 64 64"><circle cx="16" cy="16" r="9" fill="url(#spl-gBr)"/><circle cx="48" cy="16" r="9" fill="url(#spl-gBr)"/><circle cx="16" cy="16" r="4.5" fill="#F1C7A2"/><circle cx="48" cy="16" r="4.5" fill="#F1C7A2"/><circle cx="32" cy="34" r="22" fill="url(#spl-gBr)"/><ellipse cx="32" cy="42" rx="11" ry="8" fill="#F1C7A2"/><circle cx="24" cy="30" r="3" fill="#1A1A1A"/><circle cx="40" cy="30" r="3" fill="#1A1A1A"/><circle cx="25" cy="29" r="1" fill="#fff"/><circle cx="41" cy="29" r="1" fill="#fff"/><ellipse cx="32" cy="39" rx="4" ry="3" fill="#1A1A1A"/><path d="M28 45 Q32 48 36 45" stroke="#1A1A1A" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
-    </svg>
   </div>
-  <script>
-    // Fill the splash greeting right away (telegram-web-app.js is loaded synchronously above).
-    (function () {
-      var u = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user;
-      if (!u) return;
-      var name = u.username ? '@' + u.username : (u.first_name || 'Mehmon');
-      document.getElementById('spl-name').textContent = name;
-      var av = document.getElementById('spl-avatar');
-      if (u.photo_url && /^https:\/\//.test(u.photo_url)) {
-        var img = new Image(); img.alt = ''; img.src = u.photo_url;
-        img.onerror = function () { img.remove(); };
-        av.textContent = ''; av.appendChild(img);
-      } else {
-        av.textContent = (u.first_name || name).replace('@', '').charAt(0).toUpperCase();
-      }
-    })();
-  </script>
-
+  <script src="/static/js/splash.js?v=1"></script>
   <div id="app">
     <header class="topbar" id="topbar"></header>
     <h1 class="page-title" id="page-title"></h1>
@@ -140,6 +44,6 @@
   </div>
   <div id="sheet-root"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/static/js/app.js?v=20261127"></script>
+  <script type="module" src="/static/js/app.js?v=20261127l"></script>
 </body>
 </html>

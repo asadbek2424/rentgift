@@ -492,3 +492,14 @@ def test_panel_link_token_is_single_use():
     token = panel.issue_link_token(7)
     assert panel._links[token][0] == 7 and panel._links[token][1] > _t.time()
     assert panel._links.pop(token)[0] == 7 and token not in panel._links
+
+
+def test_per_day_markup_example():
+    """Gift 200 so'm/day + admin markup 1 000 so'm/day → 1 200/day, 3 days = 3 600, + 1 800 service fee = 5 400."""
+    from decimal import Decimal
+    from app.pricing import PricingConfig, make_quote
+    config = PricingConfig(rate_uzs_per_ton=Decimal(40000), fee_percent=Decimal(0), markup_percent=Decimal(0),
+                           fixed_per_day=Decimal(1000), round_to=10, rate_mode="manual", service_fee=Decimal(1800))
+    q = make_quote(5_000_000, 3, config)          # 0.005 TON/day × 40 000 = 200 so'm/day
+    assert (q.per_day_uzs, q.rent_uzs, q.service_fee_uzs, q.amount_uzs) == (1200, 3600, 1800, 5400)
+    assert q.profit_uzs == 5400 - 600             # cost is the real Marketapp price: 200 × 3

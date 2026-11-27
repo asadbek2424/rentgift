@@ -84,7 +84,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="GiftRent", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="RentaGift", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.include_router(api_router)
     from .panel import router as panel_router
     app.include_router(panel_router)

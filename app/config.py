@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     bot_token: str = ""
     admin_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
     webapp_url: str = "http://localhost:8080"  # public HTTPS URL of this server (Mini App)
-    app_name: str = "GiftRent"
+    app_name: str = "RentaGift"
     default_lang: Literal["uz", "ru", "en"] = "uz"
     support_username: str = ""   # without @
     channel_username: str = ""   # without @

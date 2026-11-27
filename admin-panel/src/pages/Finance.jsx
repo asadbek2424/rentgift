@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Wallet, TrendingUp, Coins, DollarSign, Calculator, Save, Percent, Info, Flame } from 'lucide-react';
+import { Wallet, TrendingUp, Coins, DollarSign, Calculator, Save, Percent, Info, Flame, Gift, Plus } from 'lucide-react';
 import { Card, CardHeader, StatCard, PageHeader, Loading, ErrorBox, som, fmt } from '../components/ui.jsx';
 import { useAction } from '../components/Layout.jsx';
 import { adminApi, useApi } from '../data/api.js';
@@ -9,7 +9,6 @@ const FIELDS = [
   ['service_fee_uzs', "Xizmat haqi, so'm", 'Har buyurtmaga qat\'iy summa — asosiy foydangiz'],
   ['min_rent_days', 'Minimal ijara, kun', 'Mijoz eng kamida necha kunga oladi'],
   ['markup_percent', 'Ijaraga ustama, %', 'Odatda 0'],
-  ['profit_fixed_uzs', "Ustama, so'm / kun", 'Odatda 0'],
   ['round_to', 'Yaxlitlash', 'Kunlik narx shu songa yuqoriga yaxlitlanadi'],
   ['stars_markup_percent', 'Stars ustamasi, %', ''],
   ['premium_markup_percent', 'Premium ustamasi, %', ''],
@@ -67,6 +66,30 @@ export default function Finance() {
               <button className="btn-light !py-1 text-xs" onClick={() => setForm({ ...form, fee_percent: s.observed_fee_percent })}>Shuni qo'llash</button>
             </div>
           )}
+          <div className="mt-4 rounded-2xl border border-sky-300/70 bg-gradient-to-br from-white/80 to-sky-50/70 p-4 shadow-sm">
+            <div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-lg bg-sky-500 text-white"><Gift size={16} /></span>
+              <div><p className="text-sm font-semibold">Gift narxiga qo'shimcha (so'm / kun)</p><p className="text-[11px] text-slate-500">Har kunlik narxga qo'shiladi va kunlar soniga ko'paytiriladi. Xizmat haqi alohida qo'shiladi.</p></div></div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="relative w-44"><Plus size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-600" />
+                <input className="input pl-8 text-lg font-bold" inputMode="numeric" value={form.profit_fixed_uzs ?? ''} onChange={set('profit_fixed_uzs')} /></div>
+              <span className="text-sm text-slate-600">so'm / kun</span>
+              {[0, 500, 1000, 2000, 5000].map((v) => (
+                <button key={v} type="button" onClick={() => setForm({ ...form, profit_fixed_uzs: String(v) })}
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${num(form.profit_fixed_uzs) === v ? 'bg-sky-600 text-white' : 'bg-white/80 text-slate-600 hover:bg-white'}`}>+{fmt(v)}</button>
+              ))}
+            </div>
+            {(() => {
+              const add = num(form.profit_fixed_uzs), svc = num(form.service_fee_uzs), base = 200, d = 3;
+              const day = base + add;
+              return (
+                <p className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-xs leading-relaxed text-slate-700">
+                  Misol: gift Marketapp'da <b>{fmt(base)} so'm/kun</b> → mijozga <b>{fmt(day)} so'm/kun</b>.
+                  {' '}{d} kun = <b>{fmt(day * d)}</b> + xizmat haqi <b>{fmt(svc)}</b> = <b className="text-emerald-700">{fmt(day * d + svc)} so'm</b>.
+                  {' '}Sizning foydangiz: <b className="text-amber-600">{fmt(add * d + svc)} so'm</b>.
+                </p>
+              );
+            })()}
+          </div>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {FIELDS.map(([k, label, hint]) => (
               <label key={k} className="block text-sm">

@@ -103,8 +103,7 @@ export async function topupView(view, h, id) {
         <button class="copy-btn" data-copy="${h.esc((card.number || '').replace(/\s/g, ''))}">${h.esc(t('common.copy'))}</button></div>
       ${card.holder ? `<div class="kv mt"><span>${h.esc(t('pay.holder'))}</span><b>${h.esc(card.holder)}</b></div>` : ''}
       ${card.bank ? `<div class="kv"><span>${h.esc(t('pay.bank'))}</span><b>${h.esc(card.bank)}</b></div>` : ''}
-      <p class="note warn">${h.esc(t('wallet.exact', { amount: money(top.amount_uzs), add: top.unique_add_uzs }))}</p>
-      <p class="note" style="color:#6fe39a">🤖 ${h.esc(t('wallet.auto'))}</p>
+      ${h.exactBox(top.amount_uzs, top.unique_add_uzs || 0)}
       <div class="waiting"><div class="spinner"></div><p>${h.esc(t('wallet.waiting'))}</p></div>
       <button class="btn ghost" id="cancel">${h.esc(t('wallet.cancel'))}</button></div>`;
   view.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => h.copy(b.dataset.copy));

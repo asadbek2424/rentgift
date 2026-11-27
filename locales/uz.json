@@ -135,7 +135,13 @@
     "cancel_confirm": "Buyurtmani bekor qilasizmi?",
     "no_card": "To'lov kartasi hali sozlanmagan. Yordamga yozing.",
     "auto": "To'lov avtomatik tasdiqlanadi, odatda 1 daqiqada. Chek yuklash shart emas.",
-    "unique": "Summa oxiridagi +{add} so'm to'lovingizni avtomatik aniqlash uchun. Aynan shu summani o'tkazing, aks holda tasdiq kechikadi."
+    "unique": "Summa oxiridagi +{add} so'm to'lovingizni avtomatik aniqlash uchun. Aynan shu summani o'tkazing, aks holda tasdiq kechikadi.",
+    "exact_title": "Aynan shu summani o'tkazing",
+    "exact_why": "Oxiridagi <b>+{add} so'm</b> — sizning to'lovingiz belgisi. Shu orqali bot pulingizni avtomatik taniydi.",
+    "exact_bad": "{round} yoki boshqa summa o'tkazsangiz, to'lov topilmaydi va tasdiq kechikadi.",
+    "exact_plain": "Summani o'zgartirmasdan, tiyinigacha aniq o'tkazing.",
+    "auto_line": "Pul tushishi bilan avtomatik tasdiqlanadi — chek yuklash shart emas.",
+    "manual_line": "To'lovdan keyin admin tekshirib tasdiqlaydi."
   },
   "review": {
     "text": "Chek qabul qilindi. Admin to'lovni tekshirmoqda — odatda 5–15 daqiqa. Tasdiqlangach botga xabar keladi."
@@ -637,5 +643,20 @@
     "dispute": "Muammo",
     "rent_open": "Ochish",
     "share_text": "Bu giftni ijaraga oling"
+  },
+  "pf": {
+    "all_orders": "Barcha buyurtmalar",
+    "total_refs": "Taklif qilinganlar",
+    "active_now": "Faol ijaralar",
+    "balance": "Balans",
+    "purchases": "Stars / Premium",
+    "spent": "Jami xaridlar",
+    "invite_title": "Do'stlaringizni taklif qiling va har bir to'lovidan {p}% oling",
+    "earn_t": "Har bir to'lovdan daromad",
+    "earn_d": "Do'stingiz har safar to'laganda {p}% darhol balansingizga tushadi · ishlab topildi: {sum}",
+    "rank_t": "Top reyting",
+    "rank_d": "Eng faol xaridorlar reytingi — o'rningiz: {rank}",
+    "rank_none": "birinchi xariddan keyin",
+    "settings": "Sozlamalar"
   }
 }

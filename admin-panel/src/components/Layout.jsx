@@ -2,7 +2,7 @@ import { useState, createContext, useContext, useCallback, useRef } from 'react'
 import { NavLink, useLocation, useNavigate, Outlet, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, Wallet, Users, Megaphone, ScrollText, Settings, Search, Bot, Menu, X, Gift, LogOut, RefreshCw,
+  LayoutDashboard, Wallet, Users, Megaphone, ScrollText, Settings, Search, Bot, Menu, X, LogOut, RefreshCw,
   ShoppingBag, Star, Calculator, ExternalLink,
 } from 'lucide-react';
 import { Avatar, Toast } from './ui.jsx';
@@ -56,11 +56,11 @@ function Sidebar({ counts, onNavigate }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 px-3 pb-6 pt-1">
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-sky-400 to-blue-700 text-white shadow-lg">
-          <Gift size={20} />
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-slate-900 shadow-lg">
+          <img src="./logo.webp" alt="" className="h-7 w-7" />
         </span>
         <div>
-          <p className="text-sm font-bold text-slate-900">GiftRent Admin</p>
+          <p className="text-sm font-bold text-slate-900">RentaGift Admin</p>
           <p className="text-xs text-slate-500">Gift ijarasi boshqaruvi</p>
         </div>
       </div>

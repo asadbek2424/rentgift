@@ -37,7 +37,7 @@ export default function Dashboard() {
     <>
       <PageHeader
         title={`${greeting()}! 👋`}
-        subtitle="GiftRent — gift, username va raqam ijarasi bugungi holati"
+        subtitle="RentaGift — gift, username va raqam ijarasi bugungi holati"
         actions={<button className="btn-dark" onClick={() => nav('/orders')}><ShoppingBag size={16} /> Buyurtmalar</button>}
       />
 
