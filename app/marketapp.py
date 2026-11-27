@@ -381,7 +381,8 @@ class DemoMarketapp:
                                    {"trait_type": "Backdrop", "value": _BACKDROPS[n % len(_BACKDROPS)]},
                                    {"trait_type": "Symbol", "value": _SYMBOLS[(n * 3) % len(_SYMBOLS)]}],
                     "min_duration": (86400, 3 * 86400)[(n + k) % 2], "max_duration": (7, 14, 30, 60)[k] * 86400,
-                    "price_per_day": str(max(10_000_000, int(base * factor))), "discount_per_day": 0,
+                    "price_per_day": str(max(10_000_000, int(base * factor))),
+                    "discount_per_day": (0, 0.3, 0, 0.1, 0, 0, 50)[n % 7],
                     "listed_at": 1_763_000_000 + n, "_collection": caddr, "_num": number})
         self.rented: dict[str, int] = {}
         self.seen: dict[str, dict] = {}

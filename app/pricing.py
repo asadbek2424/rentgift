@@ -323,6 +323,15 @@ def duration_days(min_seconds: int, max_seconds: int) -> tuple[int, int]:
     return low, high
 
 
+def _discount(item: dict) -> float:
+    """Owner's Marketapp discount, % per day (0–50, 0.1 steps) → shown as a "-0.3%" ribbon."""
+    try:
+        value = float(item.get("discount_per_day") or item.get("discount_pd") or 0)
+    except (TypeError, ValueError):
+        return 0
+    return round(value, 1) if 0 < value <= 50 else 0
+
+
 def gift_card(item: dict, config: PricingConfig | None) -> dict:
     """Shape a Marketapp RentItem for the Mini App."""
     name = str(item.get("nft_name") or item.get("name") or "")
@@ -338,5 +347,5 @@ def gift_card(item: dict, config: PricingConfig | None) -> dict:
         "per_day_uzs": uzs_for_nano(ppd, config) if config else None,
         "min_days": min_days, "max_days": max_days, "rentable": min_days <= max_days,
         "service_fee_uzs": int(config.service_fee) if config else None,
-        "discount": item.get("discount_per_day") or item.get("discount_pd") or 0,
+        "discount": _discount(item),
     }
