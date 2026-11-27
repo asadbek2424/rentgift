@@ -888,3 +888,14 @@ def test_add_and_remove_admins_from_panel(monkeypatch):
             client.delete("/api/panel/staff/778", headers=owner)
         finally:
             s.admin_ids, s.operator_ids = old
+
+
+def test_each_listing_keeps_its_own_minimum_days():
+    from app.pricing import PricingConfig, rentable_days
+    config = PricingConfig(rate_uzs_per_ton=Decimal(30000), markup_percent=Decimal(0), fee_percent=Decimal(0),
+                           fixed_per_day=Decimal(0), round_to=10, rate_mode="manual", service_fee=Decimal(0), min_days=1)
+    assert rentable_days(86400, 30 * 86400, config) == (1, 30)          # Marketapp: 1 day minimum
+    assert rentable_days(3 * 86400, 30 * 86400, config) == (3, 30)      # Marketapp: 3 day minimum
+    from dataclasses import replace
+    config = replace(config, min_days=3)                                 # shop floor still raises it when set
+    assert rentable_days(86400, 30 * 86400, config) == (3, 30)

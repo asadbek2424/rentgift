@@ -6,7 +6,7 @@ import { adminApi, useApi } from '../data/api.js';
 
 const FIELDS = [
   ['fee_percent', 'Marketapp komissiyasi, %', 'Marketapp ijara narxi ustiga oladigan haq (xarajatingiz)'],
-  ['min_rent_days', 'Minimal ijara, kun', 'Mijoz eng kamida necha kunga oladi'],
+  ['min_rent_days', 'Minimal ijara, kun', "1 qo'ysangiz — har bir gift Marketapp'dagi o'z minimumi bilan (1 yoki 3 kun). Kattaroq son hammasiga majburiy minimum bo'ladi"],
   ['round_to', 'Yaxlitlash', 'Kunlik narx shu songa yuqoriga yaxlitlanadi'],
   ['stars_markup_percent', 'Stars ustamasi, %', ''],
   ['premium_markup_percent', 'Premium ustamasi, %', ''],

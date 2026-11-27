@@ -115,7 +115,7 @@ Demo rejimda katalog soxta va hech qanday pul harakat qilmaydi. `DEV_USER_ID` ni
    CARD_NUMBER=8600 .... .... 4625
    CARD_HOLDER=ISM FAMILIYA
    SERVICE_FEE_UZS=1800
-   MIN_RENT_DAYS=3
+   MIN_RENT_DAYS=1
    UNIQUE_AMOUNT_MAX=99
    AUTO_CONFIRM_PAYMENTS=true
    USERBOT_API_ID=...

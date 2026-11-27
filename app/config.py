@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     markup_percent: float = 0.0             # extra profit on the rent itself, % (0 = rent at Marketapp price)
     service_fee_uzs: int = 1800             # "Xizmat haqi": fixed fee per order, so'm (used when SERVICE_FEE_TON is 0)
     service_fee_ton: float = 0.0            # fee per order in TON, converted to so'm at the live rate (0 = use so'm)
-    min_rent_days: int = 3                  # shortest rental offered to customers
+    min_rent_days: int = 1                  # shop floor; each listing's own Marketapp minimum (1 or 3 days…) still applies
     profit_fixed_uzs: int = 0               # admin profit, so'm per rental day
     marketapp_fee_percent: float = 0.0      # Marketapp commission on top of the listing price
     rate_mode: Literal["auto", "manual"] = "auto"
