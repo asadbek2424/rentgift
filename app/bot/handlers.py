@@ -60,10 +60,10 @@ async def register_start(message: Message) -> tuple[User, bool]:
 async def start(message: Message) -> None:
     user, is_new = await register_start(message)
     arg = (message.text or "").partition(" ")[2].strip()
-    if arg.startswith("gift_") and 4 < len(arg) <= 40:        # someone sent this user a gift link
+    if arg.startswith("g_") and 2 < len(arg) <= 90:            # a gift shared from the catalogue
         lang = await user_lang(user.id)
-        await message.answer(t(lang, "bot.gift_link"), reply_markup=markup([webapp_button(t(lang, "bot.gift_open"),
-                                                                                              gift=arg[5:])]))
+        await message.answer(t(lang, "bot.shared_gift"), reply_markup=markup([webapp_button(t(lang, "bot.open_app"),
+                                                                                              g=arg[2:])]))
         return
     if is_new:
         await message.answer(t(await user_lang(user.id), "bot.choose_lang"), reply_markup=lang_keyboard())

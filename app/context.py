@@ -53,6 +53,7 @@ class AppContext:
     notifier: Any = field(default_factory=NullNotifier)
     bot: Any = None
     bot_username: str = ""
+    bot_main_app: bool = False
 
 
 _ctx: AppContext | None = None

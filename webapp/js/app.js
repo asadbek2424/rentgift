@@ -226,7 +226,6 @@ export async function render() {
   if (state.view?.name === 'guide') return guideView(view);
   if (state.view?.name === 'notices') return noticesView(view);
   if (state.view?.name === 'favorites') return favoritesView(view);
-  if (state.view?.name === 'giftAccept') return giftAcceptView(view, state.view.token);
   if (state.view) {
     const mod = await import('./wallet.js');
     if (state.view.name === 'cart') { state.view = null; state.tab = 'cart'; return render(); }
@@ -826,9 +825,6 @@ function giftSheet(g) {
       <div class="stepper"><button id="minus">−</button><div class="val"><b id="days"></b><span>${esc(t('gift.days'))}</span></div><button id="plus">+</button></div>
       <div class="chips mt" id="quick" style="margin-bottom:0"></div>
     </div>
-    ${other ? '' : `<label class="gift-toggle mt" for="as-gift"><input type="checkbox" id="as-gift"><span class="gt-ico">${icons.gift}</span>
-      <span class="gt-txt"><b>${esc(t('gift2.toggle'))}</b><small>${esc(t('gift2.toggle_sub'))}</small></span><span class="gt-sw"></span></label>
-    <textarea class="input gift-note" id="gift-note" maxlength="140" rows="2" placeholder="${esc(t('gift2.note_ph'))}" hidden></textarea>`}
     <div class="promo-box mt" id="promo-box"><button class="promo-open" id="promo-open">${icons.tag}<span>${esc(t('x.promo'))}</span></button></div>
     <div class="mt" id="bd"></div><p class="note center" id="ton" style="margin-top:6px"></p>
     ${g.sellable ? `<p class="note center sellable-note">${esc(t('gift.sellable'))}</p>` : ''}
@@ -879,7 +875,7 @@ function giftSheet(g) {
     };
     $('#gd-share', sheet).onclick = () => {
       const bot = state.me?.app?.bot_username;
-      const url = bot ? `https://t.me/${bot}?startapp=g_${g.address}` : location.href;
+      const url = bot ? `https://t.me/${bot}?${state.me?.app?.bot_main_app ? 'startapp' : 'start'}=g_${g.address}` : location.href;
       const share = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`${t('ui.share_text')}: ${g.name}`)}`;
       if (tg?.openTelegramLink && bot) tg.openTelegramLink(share); else copy(url);
     };
@@ -890,15 +886,6 @@ function giftSheet(g) {
     };
     const quick = [1, 3, 7, 14, 30].filter(d => d >= g.min_days && d <= g.max_days);
     let total = null;
-    const asGift = () => !!$('#as-gift', sheet)?.checked;
-    const rentLabel = () => {
-      if (total == null) return;
-      $('#rent', sheet).textContent = t(asGift() ? 'gift2.rent_for' : 'ui.rent_for', { price: money(total) });
-    };
-    $('#as-gift', sheet)?.addEventListener('change', () => {
-      haptic(); $('#gift-note', sheet).hidden = !asGift(); rentLabel();
-      if (asGift()) $('#gift-note', sheet).focus({ preventScroll: true });
-    });
     const update = async () => {
       total = null;
       $('#days', sheet).textContent = days;
@@ -917,7 +904,7 @@ function giftSheet(g) {
         if (promo) promoUi();
         $('#ton', sheet).textContent = '';
         total = q.amount_uzs - off;
-        rentLabel();
+        $('#rent', sheet).textContent = t('ui.rent_for', { price: money(total) });
         $('#rent', sheet).disabled = false;
       } catch (e) {
         if (mine !== seq) return;
@@ -941,7 +928,7 @@ function giftSheet(g) {
             return;
           }
         }
-        const order = await api.createOrder(g.address, days, promo?.code || '', asGift(), asGift() ? $('#gift-note', sheet).value.trim() : '');
+        const order = await api.createOrder(g.address, days, promo?.code || '');
         haptic('medium'); close(); state.orders = null; openOrder(order.id);
       } catch (err) { toast(errText(err), true); e.target.disabled = false; }
     };
@@ -1215,7 +1202,7 @@ async function orderView(view, id) {
   const head = `<div class="card"><div class="order-head"><div class="thumb">${isGift ? giftImage(o.image, o.nft_name) : nameTile({ name: o.nft_name, category: o.category })}</div>
       <div><h3>${esc(o.nft_name)}</h3>${o.kind === 'extend' ? `<div class="sub muted" style="margin:-2px 0 6px;font-size:13px">${esc(t('ext.of', { id: o.parent_id }))}</div>` : ''}${statusBadge(o.status)}</div></div>${stepsHtml(o.status, o.kind)}
       <div class="kv mt" style="padding-bottom:4px"><span>${esc(t('order.period'))}</span><b>${o.days} ${esc(t('common.days'))}</b></div></div>
-      ${o.gift_received ? '' : `<div class="mt">${breakdown(o.per_day_uzs, o.days, o.service_fee_uzs || 0, o.amount_uzs, o.unique_add_uzs || 0, o.discount_uzs || 0)}</div>`}`;
+      <div class="mt">${breakdown(o.per_day_uzs, o.days, o.service_fee_uzs || 0, o.amount_uzs, o.unique_add_uzs || 0, o.discount_uzs || 0)}</div>`;
   let body = '';
   switch (o.status) {
     case 'awaiting_payment': body = paymentCard(o); break;
@@ -1230,22 +1217,15 @@ async function orderView(view, id) {
         <p class="note">${esc(t('active.hint'))}</p>
         <button class="btn green mt" id="extend-btn">${esc(t('ext.btn'))}</button>
         </div>` + (o.category === 'number' ? `<div class="mt">${numberCard(o)}</div>`
-          : isGift ? (o.gift_state === 'pending' ? '' : `<div class="mt">${tgCard(o, true)}</div>${method2(o, true)}`)
+          : isGift ? `<div class="mt">${tgCard(o, true)}</div>${method2(o, true)}`
           : `<details class="alt-way mt"><summary>${esc(t('active.relink'))}</summary>${linkCard(o, true)}</details>`); break;
     default: body = `<div class="card center"><p style="margin:0;line-height:1.5">${esc(t(`final.${o.status}`))}</p>
         ${o.kind === 'extend' && o.parent_id ? `<button class="btn mt" id="open-parent">${esc(t('notify.open'))} #${o.parent_id}</button>` : ''}
         ${o.kind !== 'extend' && ['expired', 'cancelled', 'refunded', 'failed'].includes(o.status) ? `<button class="btn mt" id="rerent">${icons.repeat.replace('<svg', '<svg width="18" height="18"')} ${esc(t('x.rerent'))}</button>` : ''}
         <button class="btn secondary mt" id="browse">${esc(t('rentals.browse'))}</button></div>`;
   }
-  const pending = o.gift_state === 'pending';
-  if (pending && ['awaiting_link', 'paid', 'renting'].includes(o.status)) body = giftShareCard(o) + (o.status === 'awaiting_link' ? '' : `<div class="mt">${body}</div>`);
-  else if (pending && o.status === 'active') body += `<div class="mt">${giftShareCard(o)}</div>`;
-  else if (pending && ['awaiting_payment', 'payment_review'].includes(o.status)) body = `<div class="card gift-banner">${icons.gift}<p>${esc(t('gift2.after_pay'))}</p></div>` + body;
-  else if (giftable(o)) body += `<button class="btn secondary mt gift-offer" id="gs-make">${icons.gift}<span>${esc(t('gift2.make'))}</span></button>`;
-  if (o.gift_received) body = `<div class="card gift-banner received">${icons.gift}<div><b>${esc(t('gift2.received'))}</b>${o.gift_note ? `<p>“${esc(o.gift_note)}”</p>` : ''}</div></div>` + body;
   view.innerHTML = head + `<div class="mt">${body}</div>`;
   bindOrder(view, o);
-  bindGift(view, o);
   // countdowns
   const tick = () => {
     view.querySelectorAll('[data-until]').forEach(el => { el.textContent = clock((new Date(el.dataset.until) - Date.now()) / 1000); });
@@ -1257,11 +1237,7 @@ async function orderView(view, id) {
     state.poll = setInterval(async () => {
       if (document.hidden || state.view?.id !== id) return;
       if (view.querySelector('textarea:focus') || view.querySelector('#tg-msg')) return;
-      try { const fresh = await api.order(id); if (fresh.status !== o.status || fresh.gift_state !== o.gift_state) { haptic('medium'); render(); } }
-      catch (e) {
-        // the friend accepted the gift: the order now belongs to them
-        if (o.gift_state === 'pending' && e?.code === 'order_not_found') { toast(t('gift2.sent_note')); state.invSeg = 'history'; switchTab('rentals'); }
-      }
+      try { const fresh = await api.order(id); if (fresh.status !== o.status) { haptic('medium'); render(); } } catch { /* offline */ }
     }, 5000);
   }
 }
@@ -1380,19 +1356,15 @@ function splitName(name = '') {
 function statusCard(o) {
   const kind = ACT_KIND[o.status] || 'wait';
   const [title, num] = splitName(o.nft_name);
-  let label = kind === 'wait' || o.status === 'active' ? t(`status.${o.status}`) : t(ACT_LABEL[kind]);
-  if (o.gift_sent) label = t('gift2.sent_to', { name: o.gift_to || '' });
-  else if (o.gift_state === 'pending') label = t('gift2.pending_lbl');
-  else if (o.gift_received) label = `${t('gift2.received_lbl')} · ${label}`;
-  const tag = o.gift_sent ? 'div' : 'button';
-  return `<div class="act-item ${o.gift_state || o.gift_sent ? 'is-gift' : ''}">
-    <div class="act-top"><span class="act-st ${o.gift_sent ? 'ok' : kind}">${o.gift_state || o.gift_sent ? icons.gift : ACT_ICON[kind]}${esc(label)}</span><span class="date">${esc(shortDate(o.created_at))}</span></div>
-    <${tag} class="status-card ${kind}" ${o.gift_sent ? '' : `data-order="${o.id}"`}>
+  const label = kind === 'wait' || o.status === 'active' ? t(`status.${o.status}`) : t(ACT_LABEL[kind]);
+  return `<div class="act-item">
+    <div class="act-top"><span class="act-st ${kind}">${ACT_ICON[kind]}${esc(label)}</span><span class="date">${esc(shortDate(o.created_at))}</span></div>
+    <button class="status-card ${kind}" data-order="${o.id}">
       <div class="sc-body"><div class="thumb">${orderThumb(o)}</div>
         <div class="grow"><div class="title">${esc(title)}</div>
           <div class="sub">${esc(num || `#${o.id}`)}${o.kind === 'extend' ? ` · +${esc(t('ext.label'))}` : ''} · ${o.days} ${esc(t('common.days'))}</div></div>
-        ${o.gift_received ? '' : `<div class="price">${esc(Number(o.amount_uzs).toLocaleString('ru-RU').replace(/,/g, ' '))}<span class="sum-ico">${esc(t('common.sum'))}</span></div>`}</div>
-      <span class="sc-go">${esc(o.gift_sent ? t('gift2.sent_note') : t('ui.go_order'))}</span></${tag}></div>`;
+        <div class="price">${esc(Number(o.amount_uzs).toLocaleString('ru-RU').replace(/,/g, ' '))}<span class="sum-ico">${esc(t('common.sum'))}</span></div></div>
+      <span class="sc-go">${esc(t('ui.go_order'))}</span></button></div>`;
 }
 
 function historyList(view) {
@@ -1405,109 +1377,12 @@ function historyList(view) {
   $('#browse', view)?.addEventListener('click', () => switchTab('catalog'));
 }
 
-// ------------------------------------------------------------------ 🎁 rent and send to a friend
-const giftable = o => o.kind !== 'extend' && (o.category || 'gift') === 'gift' && !o.gift_received && !o.gift_state
-  && ['awaiting_link', 'active'].includes(o.status);
-
-function giftLink(token) {
-  const bot = state.me?.app?.bot_username;
-  return bot ? `https://t.me/${bot}?startapp=gift_${token}` : `${location.origin}/?gift=${encodeURIComponent(token)}`;
-}
-
-function giftShareCard(o) {
-  return `<div class="card gift-share">
-    <div class="gs-top"><span class="gs-ico">${icons.gift}</span><div><h3>${esc(t('gift2.share_title'))}</h3>
-      <p>${esc(t('gift2.share_text'))}</p></div></div>
-    ${o.gift_note ? `<blockquote class="gs-note">“${esc(o.gift_note)}”</blockquote>` : ''}
-    <button class="btn" id="gs-send">${icons.send || ''}<span>${esc(t('gift2.send'))}</span></button>
-    <div class="gs-row mt"><button class="btn secondary" id="gs-copy">${esc(t('gift2.copy'))}</button>
-      <button class="btn secondary" id="gs-note">${esc(t(o.gift_note ? 'gift2.note_edit' : 'gift2.note_add'))}</button></div>
-    <p class="note warn">${esc(t('gift2.warn'))}</p>
-    <button class="link-btn" id="gs-cancel">${esc(t('gift2.cancel'))}</button></div>`;
-}
-
-function bindGift(view, o) {
-  const link = o.gift_token ? giftLink(o.gift_token) : '';
-  $('#gs-send', view)?.addEventListener('click', () => {
-    haptic('medium');
-    const text = t('gift2.msg', { name: o.nft_name, days: o.days }) + (o.gift_note ? `\n\n“${o.gift_note}”` : '');
-    const url = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
-    if (tg?.openTelegramLink) tg.openTelegramLink(url); else openLink(url);
-  });
-  $('#gs-copy', view)?.addEventListener('click', () => copy(link));
-  $('#gs-note', view)?.addEventListener('click', () => giftNoteSheet(o));
-  $('#gs-make', view)?.addEventListener('click', () => giftNoteSheet(o, true));
-  $('#gs-cancel', view)?.addEventListener('click', () => {
-    const run = async () => { try { await api.giftCancel(o.id); haptic('medium'); state.orders = null; render(); } catch (e) { toast(errText(e), true); } };
-    if (tg?.showConfirm) tg.showConfirm(t('gift2.cancel_confirm'), ok => ok && run()); else if (confirm(t('gift2.cancel_confirm'))) run();
-  });
-}
-
-function giftNoteSheet(o, make = false) {
-  const html = `<h3 style="margin:0 0 6px">${esc(t(make ? 'gift2.make' : 'gift2.note_add'))}</h3>
-    ${make ? `<p class="note">${esc(t(o.status === 'active' ? 'gift2.make_active' : 'gift2.share_text'))}</p>` : ''}
-    <textarea class="input gift-note" id="gn" maxlength="140" rows="3" placeholder="${esc(t('gift2.note_ph'))}">${esc(o.gift_note || '')}</textarea>
-    <button class="btn mt" id="gn-save">${esc(t(make ? 'gift2.make_go' : 'gift2.save'))}</button>`;
-  openSheet(html, (sheet, close) => {
-    $('#gn-save', sheet).onclick = async e => {
-      e.target.disabled = true;
-      try { await api.giftMake(o.id, $('#gn', sheet).value.trim()); haptic('medium'); close(); state.orders = null; render(); }
-      catch (err) { toast(errText(err), true); e.target.disabled = false; }
-    };
-  });
-}
-
-async function giftAcceptView(view, token) {
-  view.innerHTML = `<div class="skeleton" style="height:360px"></div>`;
-  let g;
-  try { g = await api.giftPreview(token); } catch (e) {
-    view.innerHTML = `<div class="card hero"><div class="hero-art">${art.giftBox}</div><h2>${esc(errText(e))}</h2>
-      <button class="btn mt2" id="browse">${esc(t('rentals.browse'))}</button></div>`;
-    $('#browse', view).onclick = () => switchTab('catalog');
-    return;
-  }
-  if (state.view?.name !== 'giftAccept') return;
-  const ends = g.end_time ? t('gift2.ends', { date: dateTime(g.end_time) }) : t('gift2.days', { days: g.days });
-  const action = {
-    ready: `<button class="btn green" id="ga-accept">${esc(t('gift2.accept'))}</button>`,
-    own: `<p class="note center">${esc(t('error.gift_own'))}</p><button class="btn" id="ga-own">${esc(t('notify.open'))}</button>`,
-    not_ready: `<p class="note warn center">${esc(t('error.gift_not_ready'))}</p>`,
-    taken: `<p class="note warn center">${esc(t('error.gift_taken'))}</p>`,
-    gone: `<p class="note warn center">${esc(t('error.gift_gone'))}</p>`,
-  }[g.state] || '';
-  view.innerHTML = `<div class="card gift-accept">
-      <div class="ga-burst"></div>
-      <div class="ga-img">${giftImage(g.image, g.name)}</div>
-      <p class="ga-from">${esc(t('gift2.from', { name: g.from || '🙂' }))}</p>
-      <h2>${esc(g.name)}</h2>
-      ${g.note ? `<blockquote class="gs-note">“${esc(g.note)}”</blockquote>` : ''}
-      <div class="ga-chips"><span>${flat.clock}${esc(ends)}</span></div>
-      ${g.state === 'ready' ? `<p class="note">${esc(t('gift2.accept_hint'))}</p>` : ''}
-      ${action}
-      ${g.state === 'ready' ? '' : `<button class="btn secondary mt" id="browse">${esc(t('rentals.browse'))}</button>`}
-    </div>`;
-  $('#browse', view)?.addEventListener('click', () => switchTab('catalog'));
-  $('#ga-own', view)?.addEventListener('click', () => openOrder(g.order_id));
-  $('#ga-accept', view)?.addEventListener('click', async e => {
-    e.target.disabled = true;
-    try {
-      const order = await api.giftAccept(token);
-      haptic('heavy');
-      try { tg?.requestWriteAccess?.(); } catch { /* old clients */ }   // so the bot can send the expiry reminders
-      toast(t('gift2.accepted'));
-      state.orders = null;
-      openOrder(order.id);
-    } catch (err) { toast(errText(err), true); e.target.disabled = false; }
-  });
-}
-
 // ------------------------------------------------------------------ inventory (gifts rented right now) — Tower "Inventory" grid
 function invCard(o) {
   const [title, num] = splitName(o.nft_name);
   const left = o.end_time ? duration((new Date(o.end_time) - Date.now()) / 1000) : t(`status.${o.status}`);
   return `<div class="gift-card" role="button" tabindex="0" data-order="${o.id}">
-    <div class="gift-img">${orderThumb(o)}${o.gift_state === 'pending' ? `<span class="gift-num gift-tag">${icons.gift}${esc(t('gift2.pending_lbl'))}</span>`
-      : o.status !== 'active' ? `<span class="gift-num">${esc(t(`status.${o.status}`))}</span>` : o.gift_received ? `<span class="gift-num gift-tag">${icons.gift}${esc(t('gift2.received_lbl'))}</span>` : ''}</div>
+    <div class="gift-img">${orderThumb(o)}${o.status !== 'active' ? `<span class="gift-num">${esc(t(`status.${o.status}`))}</span>` : ''}</div>
     <div class="gift-meta"><div class="gift-name">${esc(title)}</div><div class="gift-sub">${esc(num || `#${o.id}`)}</div></div>
     <div class="gift-foot"><span class="price-btn time">${flat.clock}<span data-left-until="${esc(o.end_time || '')}">${esc(left)}</span></span>
       <span class="icon-sq">${icons.chevronRight}</span></div></div>`;
@@ -1529,7 +1404,7 @@ async function inventoryView(view) {
   bindSegs();
   try { state.orders = (await api.orders()).items; } catch (e) { view.innerHTML = segs() + `<div class="empty">${esc(errText(e))}</div>`; bindSegs(); return; }
   if (state.tab !== 'rentals' || state.view || (state.invSeg === 'history' ? 'history' : 'gifts') !== seg) return;
-  const live = state.orders.filter(o => LIVE.has(o.status) && o.kind !== 'extend' && !o.gift_sent);
+  const live = state.orders.filter(o => LIVE.has(o.status) && o.kind !== 'extend');
   if (seg === 'history') {
     view.innerHTML = segs(live.length, state.orders.length) + `<div id="hist"></div>`;
     bindSegs();
@@ -1811,8 +1686,6 @@ async function boot() {
   if (orderId && params.get('extend')) state.autoExtend = Number(orderId);
   if (state.tab === 'admin' && orderId) state.adminFocus = Number(orderId);
   if (state.tab === 'rentals' && params.get('tab') === 'rentals' && !orderId) state.invSeg = 'history';
-  const giftToken = params.get('gift') || (startParam.startsWith('gift_') ? startParam.slice(5) : '');
-  if (giftToken && state.tab !== 'admin') state.view = { name: 'giftAccept', token: giftToken };
   await render();
   hideSplash();
   if (state.me.subscribe?.length) subscribeGate(state.me.subscribe);
@@ -1820,7 +1693,8 @@ async function boot() {
     const show = () => setTimeout(() => channelPromo(state.me.channel_promo), 450);
     if (!$('#splash') || window.__splashDone) show(); else window.addEventListener('splash:done', show, { once: true });
   }
-  if (startParam.startsWith('g_')) api.gift(startParam.slice(2)).then(giftSheet).catch(e => toast(errText(e), true));
+  const sharedGift = params.get('g') || (startParam.startsWith('g_') ? startParam.slice(2) : '');
+  if (sharedGift) api.gift(sharedGift).then(giftSheet).catch(e => toast(errText(e), true));
 }
 
 // Never leave the user stuck on the splash: hide it even if boot fails or hangs.

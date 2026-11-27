@@ -130,7 +130,7 @@ def _session(admin_id: int) -> dict:
 async def admin_auth_info():
     ctx = get_context()
     s = ctx.settings
-    return {"app": s.app_name, "bot_username": ctx.bot_username, "code_login": ctx.bot is not None,
+    return {"app": s.app_name, "bot_username": ctx.bot_username, "bot_main_app": ctx.bot_main_app, "code_login": ctx.bot is not None,
             "password_login": bool(s.admin_panel_password), "default_lang": s.default_lang}
 
 
@@ -213,7 +213,7 @@ async def me(user: CurrentUser = Depends(current_user)):
                      "spent_uzs": int(db_user.spent_uzs or 0) if db_user else 0},
             "rentals": rentals, "card": card,
             "app": {"name": s.app_name, "support": s.support_username, "channel": s.channel_username,
-                    "offer_url": s.offer_url, "langs": list(LANGS), "bot_username": ctx.bot_username,
+                    "offer_url": s.offer_url, "langs": list(LANGS), "bot_username": ctx.bot_username, "bot_main_app": ctx.bot_main_app,
                     "auto_payments": bool(s.auto_confirm_payments and userbot.status.get("state") == "on"),
                     "wallet_mode": s.wallet_mode, "topup_min": s.topup_min_uzs, "topup_max": s.topup_max_uzs,
                     "admin_wallet": s.admin_wallet_address if user.is_admin else "",
@@ -483,62 +483,15 @@ class OrderBody(BaseModel):
     nft_address: str = Field(max_length=80)
     days: int = Field(ge=1, le=365)
     promo: str = Field(default="", max_length=24)
-    as_gift: bool = False                       # «Do'stga sovg'a»: the order gets a one-time hand-over link
-    gift_note: str = Field(default="", max_length=200)
 
 
 @router.post("/orders")
 async def create_order(body: OrderBody, user: CurrentUser = Depends(current_user)):
-    from . import gifting
-    ctx = get_context()
     try:
-        order = await svc.create_order(ctx, user.id, body.nft_address, body.days, body.promo)
-        if body.as_gift:
-            order = await gifting.make_link(ctx, user.id, order.id, body.gift_note)
+        order = await svc.create_order(get_context(), user.id, body.nft_address, body.days, body.promo)
     except svc.ServiceError as exc:
         raise _error(exc) from None
     return svc.order_view(order)
-
-
-class GiftBody(BaseModel):
-    note: str = Field(default="", max_length=200)
-
-
-@router.post("/orders/{order_id}/gift")
-async def gift_make(order_id: int, body: GiftBody, user: CurrentUser = Depends(current_user)):
-    """Make (or update the note of) the one-time link that hands this rental to a friend."""
-    from . import gifting
-    try:
-        return svc.order_view(await gifting.make_link(get_context(), user.id, order_id, body.note))
-    except svc.ServiceError as exc:
-        raise _error(exc) from None
-
-
-@router.delete("/orders/{order_id}/gift")
-async def gift_cancel(order_id: int, user: CurrentUser = Depends(current_user)):
-    from . import gifting
-    try:
-        return svc.order_view(await gifting.cancel(get_context(), user.id, order_id))
-    except svc.ServiceError as exc:
-        raise _error(exc) from None
-
-
-@router.get("/gift/{token}")
-async def gift_preview(token: str, user: CurrentUser = Depends(current_user)):
-    from . import gifting
-    try:
-        return await gifting.preview(token, user.id)
-    except svc.ServiceError as exc:
-        raise _error(exc) from None
-
-
-@router.post("/gift/{token}/accept")
-async def gift_accept(token: str, user: CurrentUser = Depends(current_user)):
-    from . import gifting
-    try:
-        return svc.order_view(await gifting.accept(get_context(), token, user.id))
-    except svc.ServiceError as exc:
-        raise _error(exc) from None
 
 
 class PromoCheckBody(BaseModel):
@@ -628,16 +581,8 @@ async def favorites_remove(address: str, user: CurrentUser = Depends(current_use
 @router.get("/orders")
 async def my_orders(user: CurrentUser = Depends(current_user)):
     async with Session() as session:
-        rows = list((await session.execute(select(Order).where(Order.user_id == user.id)
-                                           .order_by(Order.id.desc()).limit(100))).scalars())
-    from . import gifting
-    items = [svc.order_view(o) for o in rows]
-    for o in await gifting.sent_orders(user.id):          # gifts this user paid for and handed to a friend
-        view = svc.order_view(o)
-        view.update(gift_sent=True, gift_to=await gifting._name(o.user_id), gift_token="", gift_received=False)
-        items.append(view)
-    items.sort(key=lambda v: v["created_at"], reverse=True)
-    return {"items": items}
+        rows = (await session.execute(select(Order).where(Order.user_id == user.id).order_by(Order.id.desc()).limit(100))).scalars()
+        return {"items": [svc.order_view(o) for o in rows]}
 
 
 @router.get("/orders/{order_id}")

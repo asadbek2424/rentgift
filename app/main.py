@@ -63,7 +63,11 @@ async def lifespan(app: FastAPI):
         with contextlib.suppress(Exception):
             await configure_bot(bot, settings)
         with contextlib.suppress(Exception):
-            ctx.bot_username = (await bot.get_me()).username or ""
+            me = await bot.get_me()
+            ctx.bot_username = me.username or ""
+            # t.me/<bot>?startapp=… opens the Mini App only when BotFather has a Main Mini App for the bot;
+            # otherwise share links use ?start=… and the bot answers with a button that opens the gift.
+            ctx.bot_main_app = bool(getattr(me, "has_main_web_app", False))
         tasks.append(asyncio.create_task(dp.start_polling(bot, handle_signals=False), name="bot"))
     elif settings.run_bot:
         log.warning("BOT_TOKEN is empty: the Telegram bot is not started")

@@ -33,8 +33,7 @@
     "market": "Market",
     "inventory": "Inventory",
     "activity": "Activity",
-    "cart": "Cart",
-    "giftAccept": "Gift"
+    "cart": "Cart"
   },
   "banner": {
     "title": "Pay in UZS — by card transfer",
@@ -270,17 +269,7 @@
     "promo_expired": "Promo code has expired",
     "promo_used_up": "Promo code limit reached",
     "promo_already_used": "You have already used this promo code",
-    "favorites_full": "Favorites list is full (100)",
-    "gift_not_giftable": "Only gift rentals can be sent as a present.",
-    "gift_already_gift": "This gift was given to you — it can't be passed on again.",
-    "gift_expired": "The rental has ended.",
-    "gift_busy": "The gift is being connected to Telegram right now. Try again shortly.",
-    "gift_not_pending": "The gift has already been accepted.",
-    "gift_not_found": "Gift link not found or expired.",
-    "gift_taken": "Someone else has already accepted this gift.",
-    "gift_own": "This is your own gift. Send the link to your friend.",
-    "gift_not_ready": "The gift isn't ready yet — wait for the payment to be confirmed.",
-    "gift_gone": "This gift has ended or was cancelled."
+    "favorites_full": "Favorites list is full (100)"
   },
   "bot": {
     "welcome": "Hello, {name}! 👋\n\n<b>{app}</b> — rent Telegram gifts and pay in UZS. The gift is connected straight to your Telegram profile through Fragment.\n\nTap the button below to start.",
@@ -295,8 +284,7 @@
     "receipt_no_order": "No order is waiting for payment. Place an order in the app first.",
     "link_received": "🔗 Link received, connecting…",
     "link_no_order": "No rental is waiting for a Fragment link.",
-    "gift_link": "🎁 Someone sent you a gift! Open it to accept:",
-    "gift_open": "🎁 Open the gift"
+    "shared_gift": "🎁 Someone shared a gift with you — open it to see:"
   },
   "notify": {
     "open": "Open order",
@@ -320,11 +308,7 @@
     "open_app": "Open the app",
     "tg_reminder": "🎁 Your «{name}» rental is ready but not shown on your profile yet.\n\nOpen the app → «Connect Telegram» → tap «Confirm» in Telegram. You only do this once.",
     "tg_wrong_account": "⚠️ For «{name}» the login was confirmed from another account ({account}). Open the app and choose the account.",
-    "tg_limit": "⏳ «{name}»: Fragment limit (3 times an hour). Tap «Connect Telegram» again in 20 minutes.",
-    "gift_ready": "🎁 <b>{name}</b> is ready as a gift! Open the order in the app and send the link to your friend with «Send to a friend».",
-    "gift_received": "🎁 You've been given <b>{name}</b>! Open the app and tap «Connect Telegram» — the gift will appear on your profile.\nRental ends: {end}",
-    "gift_cancelled": "There was a problem with the gifted <b>{name}</b> and the order was cancelled. The money went back to the sender.",
-    "gift_sold": "«{name}» was sold by its owner during the rental, so the gift ended early. The money went back to the sender."
+    "tg_limit": "⏳ «{name}»: Fragment limit (3 times an hour). Tap «Connect Telegram» again in 20 minutes."
   },
   "admin": {
     "only": "This command is for admins only.",
@@ -591,11 +575,7 @@
     "ref_joined": "👥 {name} joined with your link. You'll get a bonus from every purchase!",
     "purchase_done": "⭐ <b>{what}</b> sent to @{to}!",
     "purchase_refunded": "↩️ {what} for @{to} was not sent. <b>{amount}</b> returned to your balance.",
-    "fav_cheaper": "❤️ Your favorite gift got cheaper!\n\n<b>{name}</b> — the daily price dropped by {percent}%. Good time to rent.",
-    "gift_accepted": "🎉 {friend} accepted your gift <b>{name}</b>!",
-    "gift_refunded": "💸 Your gifted <b>{name}</b> was cancelled — <b>{amount}</b> is back on your balance.",
-    "gift_refunded_card": "💸 Your gifted <b>{name}</b> was cancelled — {amount} will be returned to your card.",
-    "gift_sold_refund": "💸 Your gifted <b>{name}</b> was sold by its owner during the rental. Your payment — <b>{amount}</b> — is back on your balance."
+    "fav_cheaper": "❤️ Your favorite gift got cheaper!\n\n<b>{name}</b> — the daily price dropped by {percent}%. Good time to rent."
   },
   "stars": {
     "seg_stars": "Stars",
@@ -756,37 +736,5 @@
     "rerent": "Rent again",
     "rerent_gone": "This gift is not for rent right now",
     "just_now": "just now"
-  },
-  "gift2": {
-    "toggle": "Send as a gift to a friend",
-    "toggle_sub": "After paying you send your friend a link — the gift shows on their profile",
-    "note_ph": "Add a message (optional), e.g. Happy birthday! 🎉",
-    "rent_for": "Gift it — {price}",
-    "after_pay": "This order is a gift. Once the payment is confirmed, the link for your friend appears here.",
-    "make": "Gift to a friend",
-    "make_active": "The gift is on your profile now. When your friend accepts it, it moves to their profile for the rest of the rental.",
-    "make_go": "Create gift link",
-    "save": "Save",
-    "share_title": "Gift to a friend",
-    "share_text": "Send the link to your friend. They open it, tap «Accept» and the gift appears on their Telegram profile.",
-    "send": "Send to a friend",
-    "copy": "Copy link",
-    "note_add": "Write a message",
-    "note_edit": "Edit message",
-    "warn": "The link works once: whoever accepts first gets the gift. Send it only to your friend.",
-    "cancel": "Cancel the gift — keep it myself",
-    "cancel_confirm": "Cancel the gift? The link stops working and the gift stays with you.",
-    "msg": "🎁 A gift for you! {name} — for {days} days. Open the link to accept:",
-    "from": "{name} sent you a gift 🎁",
-    "ends": "Rental ends: {date}",
-    "days": "{days}-day rental",
-    "accept": "🎁 Accept the gift",
-    "accept_hint": "After accepting, tap «Connect Telegram» and the gift appears on your profile. When the rental ends, the gift returns to its owner.",
-    "accepted": "The gift is yours! Now connect it to your Telegram profile.",
-    "received": "This gift was given to you 🎉",
-    "received_lbl": "Gift",
-    "pending_lbl": "Gift — not sent yet",
-    "sent_to": "Gifted → {name}",
-    "sent_note": "Your friend accepted it ✅"
   }
 }

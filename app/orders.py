@@ -133,18 +133,12 @@ def order_view(order: Order, *, admin: bool = False, settings=None) -> dict:
         "service_fee_uzs": order.service_fee_uzs or 0,
         "unique_add_uzs": order.unique_add_uzs or 0,
         "promo_code": order.promo_code or "", "discount_uzs": order.discount_uzs or 0,
-        "gift_state": order.gift_state or "", "gift_token": order.gift_token or "", "gift_note": order.gift_note or "",
-        "gift_received": bool(order.gift_from and order.gift_from != order.user_id),
         "rent_uzs": order.amount_uzs + (order.discount_uzs or 0) - (order.service_fee_uzs or 0) - (order.unique_add_uzs or 0),
         "per_day_uzs": (order.amount_uzs + (order.discount_uzs or 0) - (order.service_fee_uzs or 0)
                         - (order.unique_add_uzs or 0)) // max(1, order.days),
     }
-    if data["gift_received"] and not admin:
-        # the friend doesn't see what the gift cost
-        data.update({k: 0 for k in ("amount_uzs", "rent_uzs", "per_day_uzs", "service_fee_uzs", "discount_uzs",
-                                    "unique_add_uzs")}, ton_total="", price_per_day_ton="", promo_code="")
     if admin:
-        data.update({"user_id": order.user_id, "gift_from": order.gift_from, "rate": order.rate_uzs_per_ton, "markup": order.markup_percent,
+        data.update({"user_id": order.user_id, "rate": order.rate_uzs_per_ton, "markup": order.markup_percent,
                      "fee": order.fee_percent, "cost_uzs": order.cost_uzs, "profit_uzs": order.profit_uzs,
                      "base_ton": ton_text(order.ton_total_nano),
                      "actual_ton": ton_text(order.actual_cost_nano) if order.actual_cost_nano else None,
@@ -667,7 +661,7 @@ async def watch_tg_logins(ctx: AppContext, now) -> None:
                 await session.execute(update(Order).where(Order.id == order.id).values(tg_wait_started=None))
                 await session.commit()
         rented = aware(order.rented_at) or aware(order.updated_at)
-        if not order.tg_reminded and order.gift_state != "pending" and rented and now - rented > TG_REMIND_AFTER and not (started and now - started < TG_WAIT):
+        if not order.tg_reminded and rented and now - rented > TG_REMIND_AFTER and not (started and now - started < TG_WAIT):
             async with Session() as session:
                 await session.execute(update(Order).where(Order.id == order.id).values(tg_reminded=True))
                 await session.commit()
@@ -777,26 +771,11 @@ async def mark_refunded(ctx: AppContext, order_id: int, admin_id: int) -> Order:
     order = await _transition(order_id, {S.FAILED, S.PAID, S.CANCELLED}, S.REFUNDED, f"admin:{admin_id}")
     if (order.paid_by or "card") == "balance" and order.paid_at:
         from .wallet import credit
-        await credit(payer_of(order), int(order.amount_uzs), "refund", order_id)
-        await _refund_notice(ctx, order, "refunded_balance")
+        await credit(order.user_id, int(order.amount_uzs), "refund", order_id)
+        await ctx.notifier.user(order, "refunded_balance")
     else:
-        await _refund_notice(ctx, order, "refunded")
+        await ctx.notifier.user(order, "refunded")
     return order
-
-
-def payer_of(order: Order) -> int:
-    """Who paid: after a gift hand-over the order belongs to the friend, but money goes back to the payer."""
-    return int(order.gift_from or order.user_id)
-
-
-async def _refund_notice(ctx: AppContext, order: Order, key: str) -> None:
-    if order.gift_from and order.gift_from != order.user_id:
-        await ctx.notifier.user(order, "gift_cancelled")
-        from .bot.common import fmt_sum
-        await ctx.notifier.user_text(order.gift_from, "gift_refunded" if key == "refunded_balance" else "gift_refunded_card",
-                                     tab="balance", name=order.nft_name, amount=fmt_sum(int(order.amount_uzs)))
-    else:
-        await ctx.notifier.user(order, key)
 
 
 async def refund_to_balance(ctx: AppContext, order_id: int, admin_id: int) -> Order:
@@ -805,8 +784,8 @@ async def refund_to_balance(ctx: AppContext, order_id: int, admin_id: int) -> Or
     order = await _transition(order_id, {S.FAILED, S.PAID, S.CANCELLED}, S.REFUNDED, f"admin:{admin_id}",
                               note="refunded to balance")
     if order.paid_at:
-        await credit(payer_of(order), int(order.amount_uzs), "refund", order_id)
-    await _refund_notice(ctx, order, "refunded_balance")
+        await credit(order.user_id, int(order.amount_uzs), "refund", order_id)
+    await ctx.notifier.user(order, "refunded_balance")
     return order
 
 
@@ -815,7 +794,7 @@ async def retry(ctx: AppContext, order_id: int, admin_id: int) -> Order:
     target = S.AWAITING_LINK if order.rented_at else S.PAID
     order = await _transition(order_id, {S.FAILED}, target, f"admin:{admin_id}", error="")
     if target == S.AWAITING_LINK:
-        await ctx.notifier.user(order, "gift_ready" if order.gift_state == "pending" else "awaiting_link")
+        await ctx.notifier.user(order, "awaiting_link")
     return order
 
 
@@ -964,7 +943,7 @@ async def _confirm_chain(ctx: AppContext, order: Order, item: dict, now: datetim
             return True
         except ServiceError as exc:
             log.info("Auto display of order %s failed: %s", order.id, exc.code)
-    await ctx.notifier.user(order, "gift_ready" if order.gift_state == "pending" else "awaiting_link")
+    await ctx.notifier.user(order, "awaiting_link")
     return True
 
 
@@ -1051,14 +1030,9 @@ async def _sold_during_rent(ctx: AppContext, order: Order) -> None:
             Order.parent_id == order.id, Order.status == S.EXTENDED))).scalar_one()
     amount = int(order.amount_uzs or 0) + int(extra or 0)
     if amount > 0:
-        await credit(payer_of(order), amount, "refund", order.id, note="sold during rent")
+        await credit(order.user_id, amount, "refund", order.id, note="sold during rent")
     from .bot.common import fmt_sum
-    if order.gift_from and order.gift_from != order.user_id:
-        await ctx.notifier.user(order, "gift_sold")
-        await ctx.notifier.user_text(order.gift_from, "gift_sold_refund", tab="balance", name=order.nft_name,
-                                     amount=fmt_sum(amount))
-    else:
-        await ctx.notifier.user(order, "sold_refund", amount=fmt_sum(amount))
+    await ctx.notifier.user(order, "sold_refund", amount=fmt_sum(amount))
     await ctx.notifier.admin(order, "failed", error="sold_during_rent_refunded")
 
 
