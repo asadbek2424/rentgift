@@ -19,6 +19,7 @@ async function request(method, path, body) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const d = data?.detail || {};
+    if (res.status === 403 && d.code === 'subscribe') window.dispatchEvent(new CustomEvent('need-subscribe', { detail: d.channels || [] }));
     throw new ApiError(typeof d === 'object' && d.code ? d.code : 'generic', res.status, d.detail);
   }
   return data;
@@ -26,6 +27,7 @@ async function request(method, path, body) {
 
 export const api = {
   me: () => request('GET', '/api/me'),
+  subscription: () => request('GET', '/api/subscription'),
   setLang: lang => request('POST', '/api/me/lang', { lang }),
   collections: () => request('GET', '/api/collections'),
   attributes: collection => request('GET', '/api/attributes' + (collection ? `?collection=${encodeURIComponent(collection)}` : '')),

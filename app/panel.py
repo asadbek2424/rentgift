@@ -460,3 +460,46 @@ async def _after_change(changed: list[str]) -> None:
                 text=ctx.settings.app_name[:16], web_app=WebAppInfo(url=ctx.settings.webapp_base + "/")))
         except Exception:  # noqa: BLE001
             log.warning("Could not update the bot menu button")
+
+
+# ---------------------------------------------------------------------------- mandatory channels
+class ChannelBody(BaseModel):
+    input: str = Field(min_length=2, max_length=200)
+    invite_link: str = Field(default="", max_length=200)
+
+
+class ToggleBody(BaseModel):
+    enabled: bool
+
+
+@router.get("/channels")
+async def channels_list(admin: CurrentUser = Depends(admin_user)):
+    from . import subscription
+    ctx = get_context()
+    return {"channels": await subscription.describe(), "botReady": ctx.bot is not None, "botUsername": ctx.bot_username}
+
+
+@router.post("/channels")
+async def channels_add(body: ChannelBody, admin: CurrentUser = Depends(admin_user)):
+    from . import subscription
+    try:
+        channel = await subscription.add(body.input, body.invite_link)
+    except subscription.ChannelError as exc:
+        raise HTTPException(400, detail={"code": "generic", "error": str(exc)}) from None
+    log.info("Admin %s added mandatory channel %s (%s)", admin.id, channel["chat_id"], channel["title"])
+    return {"ok": True, "channel": channel}
+
+
+@router.delete("/channels/{chat_id}")
+async def channels_remove(chat_id: int, admin: CurrentUser = Depends(admin_user)):
+    from . import subscription
+    await subscription.remove(chat_id)
+    log.info("Admin %s removed mandatory channel %s", admin.id, chat_id)
+    return {"ok": True}
+
+
+@router.post("/channels/{chat_id}/toggle")
+async def channels_toggle(chat_id: int, body: ToggleBody, admin: CurrentUser = Depends(admin_user)):
+    from . import subscription
+    await subscription.toggle(chat_id, body.enabled)
+    return {"ok": True}

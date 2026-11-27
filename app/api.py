@@ -46,7 +46,10 @@ class CurrentUser(BaseModel):
     photo_url: str = ""
 
 
-async def current_user(x_telegram_init_data: str = Header(default="")) -> CurrentUser:
+SUBSCRIBE_EXEMPT = ("/api/me", "/api/subscription")
+
+
+async def current_user(request: Request = None, x_telegram_init_data: str = Header(default="")) -> CurrentUser:
     ctx = get_context()
     settings = ctx.settings
     tg_user = None
@@ -64,6 +67,12 @@ async def current_user(x_telegram_init_data: str = Header(default="")) -> Curren
     if user.is_blocked:
         raise HTTPException(403, detail={"code": "auth"})
     lang = user.lang or guess_lang(tg_user.get("language_code"), settings.default_lang)
+    # mandatory channels: everything except /api/me and the check endpoint needs a subscription (admins exempt)
+    if request is not None and not request.url.path.startswith(SUBSCRIBE_EXEMPT) and user.id not in settings.admin_ids:
+        from . import subscription
+        need = await subscription.missing(user.id)
+        if need:
+            raise HTTPException(403, detail={"code": "subscribe", "channels": need})
     return CurrentUser(id=user.id, lang=lang, is_admin=user.id in settings.admin_ids, first_name=user.first_name,
                        last_name=user.last_name, username=user.username, photo_url=user.photo_url)
 
@@ -82,7 +91,7 @@ async def admin_user(x_telegram_init_data: str = Header(default=""),
                            is_admin=True, first_name=db_user.first_name if db_user else "Admin",
                            last_name=db_user.last_name if db_user else "", username=db_user.username if db_user else "",
                            photo_url=db_user.photo_url if db_user else "")
-    user = await current_user(x_telegram_init_data)
+    user = await current_user(None, x_telegram_init_data)
     if not user.is_admin:
         raise HTTPException(403, detail={"code": "auth"})
     return user
@@ -183,7 +192,10 @@ async def me(user: CurrentUser = Depends(current_user)):
                 "bank": await get_setting(session, "card_bank", s.card_bank)}
         db_user = await session.get(User, user.id)
     from . import userbot
-    return {"user": {**user.model_dump(), "tg_display_ready": bool(db_user and db_user.tg_display_ready),
+    from . import channel_promo, subscription
+    need = await subscription.missing(user.id)
+    promo = await channel_promo.info(user.id) if not need else None
+    return {"subscribe": need, "channel_promo": promo, "user": {**user.model_dump(), "tg_display_ready": bool(db_user and db_user.tg_display_ready),
                      "tg_display_name": db_user.tg_display_name if db_user else "",
                      "balance_uzs": int(db_user.balance_uzs or 0) if db_user else 0,
                      "spent_uzs": int(db_user.spent_uzs or 0) if db_user else 0},
@@ -196,6 +208,23 @@ async def me(user: CurrentUser = Depends(current_user)):
                     "admin_wallet_raw": _raw(s.admin_wallet_address) if user.is_admin else "", "demo": s.demo_mode,
                     "manifest_url": f"{s.webapp_base}/tonconnect-manifest.json",
                     "admin_panel_url": s.panel_url if user.is_admin else ""}}
+
+
+@router.get("/channel/photo")
+async def channel_photo():
+    """Avatar of CHANNEL_USERNAME for the invite popup (public picture, cached in memory)."""
+    from . import channel_promo
+    data = await channel_promo.photo()
+    if not data:
+        raise HTTPException(404, detail={"code": "not_found"})
+    return StreamingResponse(io.BytesIO(data), media_type="image/jpeg", headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.get("/subscription")
+async def subscription_check(user: CurrentUser = Depends(current_user)):
+    from . import subscription
+    need = await subscription.missing(user.id, fresh=True)
+    return {"ok": not need, "channels": need}
 
 
 class LangBody(BaseModel):
@@ -677,6 +706,7 @@ async def admin_stats(admin: CurrentUser = Depends(admin_user)):
                     "fee_percent": await g("fee_percent", s.marketapp_fee_percent),
                     "profit_fixed_uzs": await g("profit_fixed_uzs", s.profit_fixed_uzs),
                     "service_fee_uzs": await g("service_fee_uzs", s.service_fee_uzs),
+                    "service_fee_ton": await g("service_fee_ton", s.service_fee_ton),
                     "min_rent_days": await g("min_rent_days", s.min_rent_days),
                     "round_to": await g("round_to", s.uzs_round_to),
                     "rate_mode": await g("rate_mode", s.rate_mode),
@@ -709,6 +739,7 @@ class SettingsBody(BaseModel):
     fee_percent: str | None = None
     profit_fixed_uzs: str | None = None
     service_fee_uzs: str | None = None
+    service_fee_ton: str | None = None
     min_rent_days: str | None = None
     round_to: str | None = None
     rate_mode: str | None = None
@@ -722,7 +753,7 @@ class SettingsBody(BaseModel):
 
 
 _LIMITS = {"stars_markup_percent": (0, 500), "premium_markup_percent": (0, 500), "referral_percent": (0, 50),"markup_percent": (0, 1000), "fee_percent": (0, 100), "profit_fixed_uzs": (0, 100_000_000),
-           "service_fee_uzs": (0, 100_000_000), "min_rent_days": (1, 180),
+           "service_fee_uzs": (0, 100_000_000), "service_fee_ton": (0, 1000), "min_rent_days": (1, 180),
            "round_to": (1, 100_000), "manual_rate": (0, 10_000_000_000)}
 
 

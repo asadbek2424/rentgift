@@ -586,7 +586,25 @@
     "st_failed": "Checking",
     "st_refunded": "Refunded",
     "fast": "Premium in minutes",
-    "fast_d": "Activated on the account automatically"
+    "fast_d": "Activated on the account automatically",
+    "page_title": "Buy Telegram Stars",
+    "page_sub": "Stars for yourself or friends — in so'm, from your app balance.",
+    "prem_title": "Buy Telegram Premium",
+    "prem_sub": "Premium for yourself or friends — in so'm, activated within minutes.",
+    "who": "To whom?",
+    "you": "(you)",
+    "enter_user": "Enter @username",
+    "pick_pack": "Choose a pack",
+    "all_packs": "All packs",
+    "custom": "Custom amount",
+    "cta": "{n} Stars — {amount}",
+    "cta_gift": "Gift Premium — {amount}",
+    "cta_self": "Get Premium — {amount}",
+    "history": "Purchase history",
+    "balance_line": "Your balance: {amount}",
+    "topup_link": "Top up",
+    "per_month": "{amount} / mo",
+    "checking": "Checking…"
   },
   "ref": {
     "title": "Referral",
@@ -658,5 +676,19 @@
     "rank_d": "Most active buyers — your place: {rank}",
     "rank_none": "after your first purchase",
     "settings": "Settings"
+  },
+  "sub": {
+    "title": "Subscribe to continue",
+    "text": "To use the bot, join the channels below and then tap «Check».",
+    "join": "Join",
+    "check": "✅ Check subscription",
+    "not_yet": "You haven't joined all the channels yet",
+    "ok": "Thanks! Subscription confirmed ✅"
+  },
+  "promo": {
+    "badge": "Channel",
+    "title": "Join our channel",
+    "text": "Don't miss new gifts, deals and important news — join our channel.",
+    "join": "Join the channel"
   }
 }

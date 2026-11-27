@@ -586,7 +586,25 @@
     "st_failed": "Tekshirilmoqda",
     "st_refunded": "Qaytarildi",
     "fast": "Premium bir necha daqiqada",
-    "fast_d": "Hisobingizga o'zi ulanadi, kutish shart emas"
+    "fast_d": "Hisobingizga o'zi ulanadi, kutish shart emas",
+    "page_title": "Telegram Stars olish",
+    "page_sub": "O'zingiz yoki yaqinlaringiz uchun Stars — so'mda, ilova balansidan.",
+    "prem_title": "Telegram Premium olish",
+    "prem_sub": "O'zingiz yoki yaqinlaringiz uchun Premium — so'mda, bir necha daqiqada ulanadi.",
+    "who": "Kimga?",
+    "you": "(siz)",
+    "enter_user": "@username kiriting",
+    "pick_pack": "To'plamni tanlang",
+    "all_packs": "Barcha to'plamlar",
+    "custom": "Boshqa miqdor",
+    "cta": "{n} Stars — {amount}",
+    "cta_gift": "Premium sovg'a qilish — {amount}",
+    "cta_self": "Premium olish — {amount}",
+    "history": "Xaridlar tarixi",
+    "balance_line": "Balansingiz: {amount}",
+    "topup_link": "To'ldirish",
+    "per_month": "{amount} / oy",
+    "checking": "Tekshirilmoqda…"
   },
   "ref": {
     "title": "Referal",
@@ -658,5 +676,19 @@
     "rank_d": "Eng faol xaridorlar reytingi — o'rningiz: {rank}",
     "rank_none": "birinchi xariddan keyin",
     "settings": "Sozlamalar"
+  },
+  "sub": {
+    "title": "Kanalga obuna bo'ling",
+    "text": "Botdan foydalanish uchun quyidagi kanallarga obuna bo'ling, so'ng «Tekshirish» tugmasini bosing.",
+    "join": "Obuna bo'lish",
+    "check": "✅ Obunani tekshirish",
+    "not_yet": "Hali hamma kanallarga obuna bo'lmadingiz",
+    "ok": "Rahmat! Obuna tasdiqlandi ✅"
+  },
+  "promo": {
+    "badge": "Kanal",
+    "title": "Kanalimizga qo'shiling",
+    "text": "Yangi giftlar, aksiyalar va muhim yangiliklarni o'tkazib yubormaslik uchun kanalimizga a'zo bo'ling.",
+    "join": "Kanalga qo'shilish"
   }
 }

@@ -1,0 +1,16 @@
+ .env.example                          |   2 [31m-[m
+ README.md                             |   1 [32m+[m
+ admin-panel/src/components/Layout.jsx |   5 [32m+[m[31m-[m
+ admin-panel/src/main.jsx              |   2 [31m-[m
+ admin-panel/src/pages/BotSettings.jsx | 129 [31m-----------------[m
+ admin-panel/src/pages/Settings.jsx    |   2 [32m+[m[31m-[m
+ app/backup.py                         |  20 [32m+[m[31m--[m
+ app/main.py                           |   2 [31m-[m
+ app/panel.py                          |  76 [31m----------[m
+ app/runtime_config.py                 | 259 [31m----------------------------------[m
+ app/userbot.py                        |   2 [32m+[m[31m-[m
+ tests/test_runtime_config.py          |  48 [31m-------[m
+ webapp/css/app.css                    |   5 [31m-[m
+ webapp/index.html                     |   4 [32m+[m[31m-[m
+ webapp/js/app.js                      |  24 [32m+[m[31m---[m
+ 15 files changed, 15 insertions(+), 566 deletions(-)

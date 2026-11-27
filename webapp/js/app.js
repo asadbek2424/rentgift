@@ -227,12 +227,11 @@ export async function render() {
   }
   if (state.tab === 'stars') { state.tab = 'catalog'; state.category = 'stars'; }
   if (state.tab === 'catalog' && state.category === 'stars') {
-    view.innerHTML = banner() + categoryTabs() + `<div class="seg">
+    view.innerHTML = categoryTabs() + `<div class="seg pill">
       <button data-sseg="stars" class="${state.starsSeg === 'stars' ? 'active' : ''}">${esc(t('stars.seg_stars'))}</button>
       <button data-sseg="premium" class="${state.starsSeg === 'premium' ? 'active' : ''}">${esc(t('stars.seg_premium'))}</button></div><div id="stars-body"></div>`;
     view.querySelectorAll('[data-sseg]').forEach(b => b.onclick = () => { state.starsSeg = b.dataset.sseg; haptic(); render(); });
     bindCategoryTabs(view);
-    $('#banner', view).onclick = () => openView('guide');
     return (await import('./wallet.js')).starsView($('#stars-body', view), helpers());
   }
   if (state.tab === 'catalog' && state.category !== 'gift') return otherCatalogView(view);
@@ -1218,6 +1217,68 @@ function langSheet() {
   });
 }
 
+// ------------------------------------------------------------------ mandatory channels
+function subscribeGate(channels) {
+  let el = $('#subgate');
+  if (!el) { el = document.createElement('div'); el.id = 'subgate'; document.body.append(el); }
+  lockScroll();
+  const draw = (list, note = '') => {
+    el.innerHTML = `<div class="sg-card">
+      <img class="sg-logo" src="/static/img/logo.webp" alt="">
+      <h2>${esc(t('sub.title'))}</h2><p>${esc(t('sub.text'))}</p>
+      <div class="sg-list">${list.map(c => `<button class="sg-ch" data-url="${esc(c.url)}">
+        <span class="sg-ico">${icons.telegram}</span><b>${esc(c.title)}</b><span class="sg-join">${esc(t('sub.join'))}</span></button>`).join('')}</div>
+      ${note ? `<p class="sg-note">${esc(note)}</p>` : ''}
+      <button class="btn" id="sg-check">${esc(t('sub.check'))}</button></div>`;
+    el.querySelectorAll('[data-url]').forEach(b => b.onclick = () => {
+      haptic(); const url = b.dataset.url;
+      if (url && tg?.openTelegramLink && url.startsWith('https://t.me/')) tg.openTelegramLink(url); else if (url) openLink(url);
+    });
+    $('#sg-check', el).onclick = async e => {
+      e.target.disabled = true;
+      try {
+        const r = await api.subscription();
+        if (r.ok) {
+          haptic('medium'); el.remove(); unlockScroll(); toast(t('sub.ok'));
+          state.me = await api.me(); render();
+          return;
+        }
+        try { tg?.HapticFeedback?.notificationOccurred('error'); } catch { /* noop */ }
+        draw(r.channels, t('sub.not_yet'));
+      } catch (err) { toast(errText(err), true); e.target.disabled = false; }
+    };
+  };
+  draw(channels);
+}
+window.addEventListener('need-subscribe', e => { if (e.detail?.length) subscribeGate(e.detail); });
+
+// ------------------------------------------------------------------ channel invite popup (after the intro animation)
+const PROMO_KEY = 'gr_promo_';
+function channelPromo(c) {
+  const until = Number((() => { try { return localStorage.getItem(PROMO_KEY + c.username); } catch { return 0; } })() || 0);
+  if (until > Date.now() || $('#subgate')) return;
+  const remember = days => { try { localStorage.setItem(PROMO_KEY + c.username, String(Date.now() + days * 86400000)); } catch { /* private mode */ } };
+  const avatar = c.photo ? `<img src="${esc(c.photo)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('img'),{src:'/static/img/logo.webp',className:'logo'}))">`
+    : '<img class="logo" src="/static/img/logo.webp" alt="">';
+  const verified = '<svg class="cp-ver" viewBox="0 0 24 24"><path d="M12 1.8l2.6 1.9 3.2-.2 1 3.1 2.6 1.9-1 3.1 1 3.1-2.6 1.9-1 3.1-3.2-.2L12 22.2l-2.6-1.9-3.2.2-1-3.1L2.6 15.5l1-3.1-1-3.1 2.6-1.9 1-3.1 3.2.2Z" fill="#2b8cff"/><path d="m7.8 12.2 2.8 2.8 5.6-5.8" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const html = `<div class="cp">
+      <span class="cp-badge">@${esc(c.username)}</span>
+      <div class="cp-brand"><span class="cp-ava">${avatar}</span><b>${verified}${esc(c.title)}</b></div>
+      <h3>${esc(t('promo.title'))}</h3><p>${esc(t('promo.text'))}</p>
+      <button class="btn cp-join" id="cp-join">${esc(t('promo.join'))}</button></div>`;
+  openSheet(html, (sheet, close) => {
+    sheet.classList.add('promo-sheet');
+    sheet.parentElement.classList.add('gift-ov');
+    $('.sheet-close', sheet).addEventListener('click', () => remember(1));        // closed: ask again tomorrow
+    sheet.parentElement.addEventListener('click', e => { if (e.target === sheet.parentElement) remember(1); });
+    $('#cp-join', sheet).onclick = () => {
+      haptic('medium'); remember(30);                                              // joined: don't nag for a month
+      if (tg?.openTelegramLink) tg.openTelegramLink(c.url); else openLink(c.url);
+      close();
+    };
+  });
+}
+
 // ------------------------------------------------------------------ boot
 function hideSplash() {
   const el = $('#splash');
@@ -1266,6 +1327,11 @@ async function boot() {
   if (state.tab === 'rentals' && params.get('tab') === 'rentals' && !orderId) state.tab = 'activity';
   await render();
   hideSplash();
+  if (state.me.subscribe?.length) subscribeGate(state.me.subscribe);
+  else if (state.me.channel_promo) {
+    const show = () => setTimeout(() => channelPromo(state.me.channel_promo), 450);
+    if (!$('#splash') || window.__splashDone) show(); else window.addEventListener('splash:done', show, { once: true });
+  }
   if (startParam.startsWith('g_')) api.gift(startParam.slice(2)).then(giftSheet).catch(e => toast(errText(e), true));
 }
 

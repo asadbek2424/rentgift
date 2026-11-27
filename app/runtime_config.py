@@ -32,6 +32,9 @@ FIELDS: list[dict] = [
      "help": "Mijozlar «Admin bilan chat» tugmasini bosganda ochiladigan Telegram akkaunt. @ siz yozing. Bo'sh bo'lsa tugma ko'rinmaydi."},
     {"key": "channel_username", "type": "username", "group": "bot", "label": "Yangiliklar kanali (CHANNEL_USERNAME)",
      "help": "Profil sahifasidagi «Yangiliklar kanali» havolasi. @ siz yozing. Bo'sh bo'lsa ko'rinmaydi."},
+    {"key": "channel_popup", "type": "bool", "group": "bot", "label": "Kanalga taklif oynasi (CHANNEL_POPUP)",
+     "help": "Mini App ochilganda, kirish animatsiyasidan keyin «Kanalimizga qo'shiling» oynasi chiqadi (yuqoridagi kanal uchun). "
+     "Mijoz yopsa, 24 soatgacha qayta chiqmaydi; kanalga a'zo bo'lganlarga umuman chiqmaydi (bot kanalda admin bo'lsa)."},
     {"key": "offer_url", "type": "url", "group": "bot", "label": "Ommaviy oferta havolasi (OFFER_URL)",
      "help": "Foydalanish shartlari sahifasi. https:// bilan boshlanishi kerak. Profil sahifasida «Ommaviy oferta» bo'lib chiqadi."},
     {"key": "default_lang", "type": "choice", "group": "bot", "label": "Standart til (DEFAULT_LANG)", "choices": ["uz", "ru", "en"],

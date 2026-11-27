@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     default_lang: Literal["uz", "ru", "en"] = "uz"
     support_username: str = ""   # without @
     channel_username: str = ""   # without @
+    channel_popup: bool = True   # Mini App: invite popup for CHANNEL_USERNAME after the intro animation
     offer_url: str = ""          # public offer / terms page
     init_data_max_age: int = 86400
     timezone: str = "Asia/Tashkent"
@@ -66,7 +67,8 @@ class Settings(BaseSettings):
 
     # --- Pricing -------------------------------------------------------------
     markup_percent: float = 0.0             # extra profit on the rent itself, % (0 = rent at Marketapp price)
-    service_fee_uzs: int = 1800             # "Xizmat haqi": fixed fee per order, so'm (your profit)
+    service_fee_uzs: int = 1800             # "Xizmat haqi": fixed fee per order, so'm (used when SERVICE_FEE_TON is 0)
+    service_fee_ton: float = 0.0            # fee per order in TON, converted to so'm at the live rate (0 = use so'm)
     min_rent_days: int = 3                  # shortest rental offered to customers
     profit_fixed_uzs: int = 0               # admin profit, so'm per rental day
     marketapp_fee_percent: float = 0.0      # Marketapp commission on top of the listing price

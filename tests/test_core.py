@@ -494,16 +494,33 @@ def test_panel_link_token_is_single_use():
     assert panel._links.pop(token)[0] == 7 and token not in panel._links
 
 
-def test_per_day_markup_example():
-    """Gift 200 so'm/day + admin markup 1 000 so'm/day → 1 200/day, 3 days = 3 600, + 1 800 service fee = 5 400."""
-    from decimal import Decimal
-    from app.pricing import PricingConfig, make_quote
-    config = PricingConfig(rate_uzs_per_ton=Decimal(40000), fee_percent=Decimal(0), markup_percent=Decimal(0),
-                           fixed_per_day=Decimal(1000), round_to=10, rate_mode="manual", service_fee=Decimal(1800))
-    q = make_quote(5_000_000, 3, config)          # 0.005 TON/day × 40 000 = 200 so'm/day
-    assert (q.per_day_uzs, q.rent_uzs, q.service_fee_uzs, q.amount_uzs) == (1200, 3600, 1800, 5400)
-    assert q.profit_uzs == 5400 - 600             # cost is the real Marketapp price: 200 × 3
+def test_percent_markup_and_ton_service_fee():
+    """0.1 TON/day at 60 000 so'm/TON = 6 000; +20% = 7 200/day; 3 days = 21 600; fee 0.01 TON = 600 → 22 200.
+    A stored so'm/day add-on (old setting) is ignored."""
+    from app.db import Session, init_db, set_setting
+    from app.pricing import RateProvider, make_quote, pricing_config
 
+    async def run():
+        await init_db()
+        async with Session() as session:
+            for k, v in {"rate_mode": "manual", "manual_rate": "60000", "markup_percent": "20", "fee_percent": "0",
+                         "service_fee_ton": "0.01", "profit_fixed_uzs": "1000", "round_to": "10"}.items():
+                await set_setting(session, k, v)
+        rates = RateProvider()
+        try:
+            config = await pricing_config(rates)
+        finally:
+            await rates.close()
+        q = make_quote(100_000_000, 3, config)                    # 0.1 TON per day
+        assert (q.per_day_uzs, q.rent_uzs, q.service_fee_uzs, q.amount_uzs) == (7200, 21600, 600, 22200)
+        async with Session() as session:                          # restore defaults for the other tests
+            for k in ("rate_mode", "manual_rate", "markup_percent", "fee_percent", "service_fee_ton", "profit_fixed_uzs", "round_to"):
+                from app.db import Setting
+                row = await session.get(Setting, k)
+                if row:
+                    await session.delete(row)
+            await session.commit()
+    asyncio.run(run())
 
 def test_panel_url_defaults_to_builtin_admin(tmp_path, monkeypatch):
     from app.config import Settings

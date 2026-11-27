@@ -41,8 +41,8 @@ async def send_welcome(message: Message, lang: str, name: str) -> None:
     await message.answer(t(lang, "bot.welcome", name=name or "👋", app=settings.app_name), reply_markup=keyboard)
 
 
-@router.message(CommandStart())
-async def start(message: Message) -> None:
+async def register_start(message: Message) -> tuple[User, bool]:
+    """Create/refresh the user, apply a ref_<id> start parameter and set a first language."""
     user, is_new = await _ensure_user(message)
     arg = (message.text or "").partition(" ")[2].strip()
     if arg.startswith("ref_") and arg[4:].isdigit():
@@ -53,6 +53,13 @@ async def start(message: Message) -> None:
                 await notify(int(arg[4:]), "ref_joined", name=message.from_user.first_name or "👤")
     if is_new:
         await svc.set_lang(user.id, guess_lang(message.from_user.language_code, get_settings().default_lang))
+    return user, is_new
+
+
+@router.message(CommandStart())
+async def start(message: Message) -> None:
+    user, is_new = await register_start(message)
+    if is_new:
         await message.answer(t(await user_lang(user.id), "bot.choose_lang"), reply_markup=lang_keyboard())
         return
     await send_welcome(message, user.lang, user.first_name)

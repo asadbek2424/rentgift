@@ -13,6 +13,7 @@ import Broadcast from './pages/Broadcast.jsx';
 import Activity from './pages/Activity.jsx';
 import SettingsPage from './pages/Settings.jsx';
 import BotSettings from './pages/BotSettings.jsx';
+import Channels from './pages/Channels.jsx';
 import Login from './pages/Login.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -31,6 +32,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="activity" element={<Activity />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="bot-settings" element={<BotSettings />} />
+          <Route path="channels" element={<Channels />} />
           <Route path="*" element={<Dashboard />} />
         </Route>
       </Routes>

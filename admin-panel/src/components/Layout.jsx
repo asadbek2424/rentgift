@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate, Outlet, Navigate } from 'react-route
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Wallet, Users, Megaphone, ScrollText, Settings, Search, Bot, Menu, X, LogOut, RefreshCw,
-  ShoppingBag, Star, Calculator, ExternalLink, SlidersHorizontal,
+  ShoppingBag, Star, Calculator, ExternalLink, SlidersHorizontal, Radio,
 } from 'lucide-react';
 import { Avatar, Toast } from './ui.jsx';
 import { useApi, getSession, getAdmin, clearSession, api } from '../data/api.js';
@@ -21,6 +21,7 @@ const NAV = (c = {}) => [
   { group: 'Mijozlar', items: [
     { to: '/users', label: 'Foydalanuvchilar', icon: Users },
     { to: '/broadcast', label: 'Xabar tarqatish', icon: Megaphone },
+    { to: '/channels', label: 'Majburiy kanallar', icon: Radio },
   ] },
   { group: 'Tizim', items: [
     { to: '/activity', label: 'Faoliyat logi', icon: ScrollText },

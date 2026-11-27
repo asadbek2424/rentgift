@@ -4,9 +4,11 @@ Customer price (same model as other rent shops: rent + one service fee):
 
     base_ton      = listing price_per_day (what Marketapp shows)
     cost_ton      = base_ton × (1 + marketapp_fee%)          ← what the admin wallet really pays
-    per_day_uzs   = round_up(cost_ton × rate × (1 + markup%) + fixed_per_day, UZS_ROUND_TO)
+    per_day_uzs   = round_up(cost_ton × rate × (1 + markup%), UZS_ROUND_TO)
     rent_uzs      = per_day_uzs × days                       ← "Ijara: 450 × 3 kun"
-    total         = rent_uzs + SERVICE_FEE_UZS               ← "Xizmat haqi", once per order
+    service_fee   = SERVICE_FEE_TON × rate  (or a fixed SERVICE_FEE_UZS when no TON fee is set)
+    total         = rent_uzs + service_fee                   ← "Xizmat haqi", once per order
+The rate follows TON/USD live (see RateProvider), so every price moves with the market automatically.
 Rentals shorter than MIN_RENT_DAYS are not offered.
 """
 
@@ -34,14 +36,18 @@ class RateUnavailable(RuntimeError):
 
 
 class RateProvider:
-    """TON/USD from CoinGecko × USD/UZS from the Central Bank of Uzbekistan, cached for 10 minutes."""
+    """TON/USD from CoinGecko (refreshed every minute) × USD/UZS from the Central Bank of Uzbekistan (hourly;
+    CBU publishes once a day). Prices therefore follow the TON market within ~1 minute. CoinGecko's free API
+    does not allow per-second polling, and a minute is far below how long a customer looks at a price."""
 
-    TTL = 600
+    TTL = 60            # TON/USD
+    USD_TTL = 3600      # USD/UZS
 
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
         self._http = httpx.AsyncClient(timeout=15, transport=transport)
         self._value: tuple[Decimal, Decimal, Decimal] | None = None   # (uzs per ton, usd per ton, uzs per usd)
         self._at = 0.0
+        self._usd: tuple[Decimal, float] | None = None                # (uzs per usd, fetched at)
         self._lock = asyncio.Lock()
 
     async def close(self) -> None:
@@ -52,9 +58,13 @@ class RateProvider:
                                    params={"ids": "the-open-network", "vs_currencies": "usd"})
         ton.raise_for_status()
         ton_usd = Decimal(str(ton.json()["the-open-network"]["usd"]))
-        cbu = await self._http.get("https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/")
-        cbu.raise_for_status()
-        usd_uzs = Decimal(str(cbu.json()[0]["Rate"]))
+        if self._usd is not None and time.monotonic() - self._usd[1] < self.USD_TTL:
+            usd_uzs = self._usd[0]
+        else:
+            cbu = await self._http.get("https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/")
+            cbu.raise_for_status()
+            usd_uzs = Decimal(str(cbu.json()[0]["Rate"]))
+            self._usd = (usd_uzs, time.monotonic())
         if ton_usd <= 0 or usd_uzs <= 0:
             raise ValueError("non-positive rate")
         return ton_usd * usd_uzs, ton_usd, usd_uzs
@@ -118,9 +128,10 @@ async def pricing_config(rates: RateProvider) -> PricingConfig:
         manual = await _num(session, "manual_rate", settings.manual_rate_uzs_per_ton)
         markup = await _num(session, "markup_percent", settings.markup_percent)
         fee = await _num(session, "fee_percent", settings.marketapp_fee_percent)
-        fixed = await _num(session, "profit_fixed_uzs", settings.profit_fixed_uzs)
+        fixed = Decimal(0)   # the fixed "so'm per day" add-on was retired: profit is the % markup + service fee
         round_to = int(await _num(session, "round_to", settings.uzs_round_to))
         service_fee = await _num(session, "service_fee_uzs", settings.service_fee_uzs)
+        service_fee_ton = await _num(session, "service_fee_ton", settings.service_fee_ton)
         min_days = int(await _num(session, "min_rent_days", settings.min_rent_days))
     uzs_per_usd = None
     if mode == "manual":
@@ -137,6 +148,8 @@ async def pricing_config(rates: RateProvider) -> PricingConfig:
                 rate = manual
             else:
                 raise
+    if service_fee_ton > 0:   # fee defined in TON follows the live rate, e.g. 0.01 TON ≈ 600 so'm today
+        service_fee = Decimal(round_up(service_fee_ton * rate, max(1, round_to)))
     return PricingConfig(rate_uzs_per_ton=rate, fee_percent=fee, markup_percent=markup, fixed_per_day=fixed,
                          round_to=max(1, round_to), rate_mode=mode, uzs_per_usd=uzs_per_usd,
                          service_fee=max(Decimal(0), service_fee), min_days=max(1, min_days))
