@@ -567,3 +567,27 @@ def test_backdrop_colour_parsing():
     got = parse(sample)
     assert got["Navy Blue"] == ["#3b5c8c", "#22355a"] and got["Black"] == ["#36333a", "#0e0f0f"] and "Broken" not in got
     assert parse({"backdrops": sample}) == got
+
+
+def test_trait_rarity_loose_names_and_other_fields():
+    import asyncio as _a
+    from app import rarity
+    from app.config import get_settings
+    from app.context import AppContext, NullNotifier
+    from app.marketapp import DemoMarketapp
+    from app.pricing import RateProvider
+
+    class Market(DemoMarketapp):
+        async def gift_collections(self):
+            return [{"name": "Durov’s  Cap", "address": "EQcap"}]           # curly quote + double space
+
+        async def collection_attributes(self, address):
+            assert address == "EQcap"
+            return [{"trait_type": "model", "values": [{"value": "Iconic Dude", "rarity_per_mille": 12}]},
+                    {"trait_type": "Backdrop", "values": [{"value": "Black", "percent": "2"}]}]
+
+    ctx = AppContext(settings=get_settings(), market=Market(), rates=RateProvider(), notifier=NullNotifier())
+    listing = {"name": "Durov's Cap #77", "attributes": [{"trait_type": "Model", "value": "Iconic Dude"},
+                                                         {"trait_type": "Backdrop", "value": "Black"}]}
+    got = {x["trait"]: x["perc"] for x in _a.run(rarity.traits(ctx, listing))}
+    assert got == {"model": "1.2", "backdrop": "2"}
