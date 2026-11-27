@@ -591,3 +591,13 @@ def test_trait_rarity_loose_names_and_other_fields():
                                                          {"trait_type": "Backdrop", "value": "Black"}]}
     got = {x["trait"]: x["perc"] for x in _a.run(rarity.traits(ctx, listing))}
     assert got == {"model": "1.2", "backdrop": "2"}
+
+
+def test_collection_names_singular_plural():
+    from app.rarity import singular
+    pairs = [("Durov’s Cap", "Durov's Caps"), ("Vice Cream", "Vice Creams"), ("Whip Cupcake", "Whip Cupcakes"),
+             ("Swiss Watch", "Swiss Watches"), ("Jelly Bunny", "Jelly Bunnies"), ("Precious Peach", "Precious Peaches"),
+             ("Light Sword", "Light Swords"), ("Plush Pepe", "Plush Pepes"), ("Lol Pop", "Lol Pops")]
+    for gift, collection in pairs:
+        assert singular(gift) == singular(collection), (gift, collection)
+    assert singular("Kiss") != singular("Kis")          # "ss" endings are not plurals

@@ -34,6 +34,20 @@ def norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def singular(name: str) -> str:
+    """Marketapp names collections in the plural ("Light Swords", "Durov's Caps", "Swiss Watches", "Jelly Bunnies")
+    while gifts are singular ("Light Sword #12"). Reduce both to one form so they compare equal."""
+    words = norm(name).split(" ")
+    last = words[-1] if words else ""
+    if len(last) > 4 and last.endswith("ies"):
+        last = last[:-3] + "y"
+    elif len(last) > 4 and re.search(r"(ches|shes|sses|xes|zes)$", last):
+        last = last[:-2]
+    elif len(last) > 3 and last.endswith("s") and not last.endswith("ss"):
+        last = last[:-1]
+    return " ".join(words[:-1] + [last])
+
+
 def _once(key: str, message: str, *args) -> None:
     if key not in _logged:
         _logged.add(key)
@@ -80,8 +94,12 @@ async def _collection_address(ctx: AppContext, listing: dict) -> str:
         _once("cols", "collection list unavailable (%s: %s)", type(exc).__name__, exc)
         return ""
     wanted = norm(name)
-    for c in collections:
+    for c in collections:                      # exact name first …
         if norm(c.get("name")) == wanted:
+            return str(c.get("address") or "")
+    wanted = singular(name)
+    for c in collections:                      # … then singular/plural ("Durov's Cap" ↔ "Durov's Caps")
+        if singular(c.get("name")) == wanted:
             return str(c.get("address") or "")
     _once(f"name:{wanted}", "no collection named %r among %d collections (e.g. %s)", name, len(collections),
           ", ".join(repr(c.get("name")) for c in collections[:5]))

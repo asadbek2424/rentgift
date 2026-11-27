@@ -572,6 +572,15 @@ function collectionsSheet() {
 // Pictures for the filter pickers. Model/Symbol art comes from the public gift dataset (cdn.changes.tg);
 // backdrop colours come from the server (/api/attributes → backdrop_colors). Everything has a fallback.
 const GIFT_CDN = 'https://cdn.changes.tg/gifts';
+// Marketapp collections are plural ("Light Swords", "Swiss Watches", "Jelly Bunnies"); gift art uses the singular name.
+function giftName(collection) {
+  const words = String(collection || '').trim().split(/\s+/);
+  let last = words.pop() || '';
+  if (last.length > 4 && /ies$/i.test(last)) last = last.slice(0, -3) + 'y';
+  else if (last.length > 4 && /(ches|shes|sses|xes|zes)$/i.test(last)) last = last.slice(0, -2);
+  else if (last.length > 3 && /s$/i.test(last) && !/ss$/i.test(last)) last = last.slice(0, -1);
+  return [...words, last].join(' ');
+}
 function hashHue(text) { let h = 0; for (const c of text || '') h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; }
 // Fallback when the colour list is unreachable: guess from colour words in the backdrop name ("Ice Blue", "Mint Green").
 const COLOR_WORDS = [['black', '#3a3a3e', '#141416'], ['onyx', '#3a3a3e', '#141416'], ['white', '#e9edf2', '#a9b0ba'], ['ivory', '#efe6cf', '#b9ab86'],
@@ -602,7 +611,7 @@ function traitThumb(trait, value, collection, colors) {
   }
   if (!collection) return `<span class="opt-thumb letter">${esc((value || '?')[0])}</span>`;
   const kind = trait === 'model' ? 'models' : 'patterns';
-  const src = `${GIFT_CDN}/${kind}/${encodeURIComponent(collection)}/png/${encodeURIComponent(value)}.png`;
+  const src = `${GIFT_CDN}/${kind}/${encodeURIComponent(giftName(collection))}/png/${encodeURIComponent(value)}.png`;
   return `<span class="opt-thumb ${trait}"><img src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer"
     onerror="this.parentNode.classList.add('letter');this.parentNode.textContent='${esc((value || '?')[0]).replace(/'/g, '')}'"></span>`;
 }
