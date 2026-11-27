@@ -95,6 +95,42 @@ def _uzs(gram: Decimal, config, markup: Decimal) -> int:
     return round_up(gram * config.rate_uzs_per_ton * (1 + markup / 100), config.round_to)
 
 
+class Prices:
+    """So'm price = (Fragment's USD price × CBU dollar rate + network fee) × (1 + markup %).
+
+    The network fee is what a Fragment purchase really burns (0.1 TON is sent, ~0.045 comes back), converted at the
+    live TON rate. The USD list keeps prices steady and follows the dollar; the live TON cost is a floor, so a
+    stale dollar rate can never sell below cost. With a USD price of 0 (or no dollar rate) the TON cost is used."""
+
+    def __init__(self, config, markup: Decimal, usd_rate: Decimal | None, fee_ton: Decimal) -> None:
+        self.config, self.markup, self.usd_rate = config, markup, usd_rate
+        self.fee_uzs = max(Decimal(0), fee_ton) * config.rate_uzs_per_ton
+
+    def price(self, gram: Decimal, usd: Decimal) -> int:
+        cost = gram * self.config.rate_uzs_per_ton
+        base = usd * self.usd_rate if usd > 0 and self.usd_rate else Decimal(0)
+        return round_up((max(base, cost) + self.fee_uzs) * (1 + self.markup / 100), self.config.round_to)
+
+    def as_dict(self) -> dict:
+        return {"fee_uzs": round_up(self.fee_uzs, self.config.round_to) if self.fee_uzs else 0,
+                "usd_rate": str(self.usd_rate.quantize(Decimal("0.01"))) if self.usd_rate else None}
+
+
+async def _num(ctx: AppContext, key: str) -> Decimal:
+    default = getattr(ctx.settings, key)
+    async with Session() as session:
+        raw = await get_setting(session, key, None)
+    try:
+        return Decimal(str(raw if raw not in (None, "") else default))
+    except Exception:  # noqa: BLE001
+        return Decimal(str(default))
+
+
+async def _prices(ctx: AppContext, kind: str) -> Prices:
+    config = await _rate(ctx)
+    return Prices(config, await _markup(ctx, kind), await ctx.rates.usd_rate(), await _num(ctx, "fragment_fee_ton"))
+
+
 # ---------------------------------------------------------------------------- prices
 async def stars_quote(ctx: AppContext, quantity: int) -> dict:
     quantity = int(quantity)
@@ -106,10 +142,10 @@ async def stars_quote(ctx: AppContext, quantity: int) -> dict:
             gram = _store(f"stars:{quantity}", _gram(await ctx.market.stars_price(quantity)))
         except MarketappError:
             raise PurchaseError("marketapp", 503) from None
-    config = await _rate(ctx)
-    price = _uzs(gram, config, await _markup(ctx, "stars"))
+    prices = await _prices(ctx, "stars")
+    price = prices.price(gram, await _num(ctx, "stars_usd_per_1000") * quantity / 1000)
     return {"quantity": quantity, "price_uzs": price, "cost_nano": int((gram * NANO).to_integral_value(ROUND_CEILING)),
-            "gram": str(gram.normalize()), "rate": str(config.rate_uzs_per_ton)}
+            "gram": str(gram.normalize()), "rate": str(prices.config.rate_uzs_per_ton), **prices.as_dict()}
 
 
 async def stars_info(ctx: AppContext) -> dict:
@@ -120,11 +156,10 @@ async def stars_info(ctx: AppContext) -> dict:
             per_star = _store("stars:per", _gram(await ctx.market.stars_price(1000)) / 1000)
         except MarketappError:
             raise PurchaseError("marketapp", 503) from None
-    config = await _rate(ctx)
-    markup = await _markup(ctx, "stars")
-    one = per_star * config.rate_uzs_per_ton * (1 + markup / 100)
-    return {"per_star_uzs": str(one.quantize(Decimal("0.01"))), "min": STARS_MIN, "max": STARS_MAX,
-            "packs": [{"quantity": q, "price_uzs": _uzs(per_star * q, config, markup)} for q in STARS_PACKS]}
+    prices = await _prices(ctx, "stars")
+    usd_1000 = await _num(ctx, "stars_usd_per_1000")
+    return {"min": STARS_MIN, "max": STARS_MAX, **prices.as_dict(),
+            "packs": [{"quantity": q, "price_uzs": prices.price(per_star * q, usd_1000 * q / 1000)} for q in STARS_PACKS]}
 
 
 async def premium_info(ctx: AppContext) -> dict:
@@ -134,14 +169,13 @@ async def premium_info(ctx: AppContext) -> dict:
             raw = _store("premium", await ctx.market.premium_price())
         except MarketappError:
             raise PurchaseError("marketapp", 503) from None
-    config = await _rate(ctx)
-    markup = await _markup(ctx, "premium")
+    prices = await _prices(ctx, "premium")
     plans = []
     for months in PREMIUM_MONTHS:
         gram = _gram((raw or {}).get(f"months{months}"))
-        plans.append({"months": months, "price_uzs": _uzs(gram, config, markup),
+        plans.append({"months": months, "price_uzs": prices.price(gram, await _num(ctx, f"premium_usd_{months}")),
                       "cost_nano": int((gram * NANO).to_integral_value(ROUND_CEILING)), "gram": str(gram.normalize())})
-    return {"plans": plans}
+    return {"plans": plans, **prices.as_dict()}
 
 
 def photo_url(raw) -> str:

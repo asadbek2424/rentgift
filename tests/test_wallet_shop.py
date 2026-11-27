@@ -102,7 +102,7 @@ def test_stars_and_premium_purchase_flow():
         with pytest.raises(shop.PurchaseError):
             await shop.buy(ctx, 320, "stars", "durov", 100)            # empty balance
         assert await shop.list_purchases(320) == []
-        await wallet.credit(320, 500_000, "admin")
+        await wallet.credit(320, 2_000_000, "admin")
         with pytest.raises(shop.PurchaseError):
             await shop.buy(ctx, 320, "stars", "x", 100)                 # bad username
         with pytest.raises(shop.PurchaseError):
@@ -110,7 +110,7 @@ def test_stars_and_premium_purchase_flow():
 
         # TON Connect mode: the admin signs
         p = await shop.buy(ctx, 320, "stars", "@durov", 100)
-        assert p.status == "signing" and await wallet.balance_of(320) == 500_000 - quote["price_uzs"]
+        assert p.status == "signing" and await wallet.balance_of(320) == 2_000_000 - quote["price_uzs"]
         prepared = await shop.prepare_tx(p.id)
         assert prepared["transaction"]["messages"]
         p = await shop.tx_sent(ctx, p.id, "boc")
@@ -230,3 +230,38 @@ def test_recipient_photo_html_is_cleaned():
     assert photo_url('<img src="https://cdn4.cdn-telegram.org/file/abc.jpg" />') == "https://cdn4.cdn-telegram.org/file/abc.jpg"
     assert photo_url('<img src="//cdn4.telesco.pe/f.jpg">') == "https://cdn4.telesco.pe/f.jpg"
     assert photo_url('<svg><text>A</text></svg>') == "" and photo_url("javascript:alert(1)") == ""
+
+
+def test_stars_and_premium_follow_dollar_price_plus_network_fee():
+    import time
+    from decimal import Decimal
+    from app import purchases as shop
+
+    async def scenario():
+        from app.db import Session, init_db, set_setting
+        await init_db()
+        async with Session() as session:                                  # demo Fragment: 3 months = 12.18 TON ≈ $11.99
+            await set_setting(session, "manual_rate", "11700")
+        ctx = _ctx(rate_mode="manual", manual_rate_uzs_per_ton=40000, uzs_round_to=10, stars_markup_percent=10.0,
+                   premium_markup_percent=10.0, fragment_fee_ton=0.055)
+        ctx.rates._usd = (Decimal(12000), time.monotonic())             # 1 $ = 12 000 so'm
+        plans = {p["months"]: p["price_uzs"] for p in (await shop.premium_info(ctx))["plans"]}
+        fee = Decimal("0.055") * 11700                                    # ≈ 649 so'm network fee
+        assert plans[3] == shop.round_up((Decimal("11.99") * 12000 + fee) * Decimal("1.1"), 10)
+        assert plans[12] == shop.round_up((Decimal("28.99") * 12000 + fee) * Decimal("1.1"), 10)
+        info = await shop.stars_info(ctx)
+        assert info["fee_uzs"] == 650
+        five_k = next(p for p in info["packs"] if p["quantity"] == 5000)["price_uzs"]
+        assert five_k == shop.round_up((Decimal(75) * 12000 + fee) * Decimal("1.1"), 10)
+
+        ctx.rates._usd = (Decimal(13000), time.monotonic())             # dollar up → so'm price up
+        assert (await shop.premium_info(ctx))["plans"][0]["price_uzs"] > plans[3]
+
+        ctx.rates._usd = (Decimal(100), time.monotonic())               # absurd dollar rate: never below TON cost
+        cheap = (await shop.premium_info(ctx))["plans"][0]
+        assert cheap["price_uzs"] >= Decimal(cheap["gram"]) * 11700
+
+        async with Session() as session:
+            await set_setting(session, "manual_rate", "40000")
+
+    asyncio.run(scenario())

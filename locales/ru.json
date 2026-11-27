@@ -626,7 +626,8 @@
     "balance_line": "Ваш баланс: {amount}",
     "topup_link": "Пополнить",
     "per_month": "{amount} / мес",
-    "checking": "Проверяем…"
+    "checking": "Проверяем…",
+    "fee_note": "В цену уже включена сетевая комиссия Telegram (≈{amount}). Цена меняется вместе с курсом доллара."
   },
   "ref": {
     "title": "Рефералы",

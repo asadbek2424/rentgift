@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     referral_percent: float = 1.0            # % of every referred user's paid amount credited to the inviter
     stars_markup_percent: float = 10.0       # profit on Telegram Stars over the Fragment price
     premium_markup_percent: float = 10.0     # profit on Telegram Premium over the Fragment price
+    username_markup_percent: float | None = None   # rented @usernames; empty = same as MARKUP_PERCENT (gifts)
+    number_markup_percent: float | None = None     # rented anonymous +888 numbers; empty = same as MARKUP_PERCENT
+    # Fragment's own USD price list; the so'm price follows the CBU dollar rate (0 = use the live TON price instead)
+    stars_usd_per_1000: float = 15.0         # 1 000 Stars = $15 (5 000 = $75 …)
+    premium_usd_3: float = 11.99
+    premium_usd_6: float = 15.99
+    premium_usd_12: float = 28.99
+    fragment_fee_ton: float = 0.055          # network fee per Fragment purchase (0.1 TON sent, ~0.045 returned)
     purchase_confirm_minutes: int = 10       # Stars/Premium: wait this long for the wallet to confirm, then flag
 
     # --- Automatic payment check (CardXabar / Uzcard notifications) ----------------

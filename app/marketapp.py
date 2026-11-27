@@ -519,7 +519,7 @@ class DemoMarketapp:
         return {"items": page, "cursor": str(start + limit) if start + limit < len(items) else None}
 
     async def stars_price(self, quantity: int) -> dict:
-        gram = round(int(quantity) * 0.0105, 4)
+        gram = round(int(quantity) * 0.0153, 4)          # ≈ Fragment: 5 000 Stars = 76.5 TON ($75)
         return {"ton": gram, "gram": gram, "usd": round(int(quantity) * 0.015, 2)}
 
     async def stars_recipient(self, username: str) -> dict:
@@ -530,8 +530,8 @@ class DemoMarketapp:
     premium_recipient = stars_recipient
 
     async def premium_price(self) -> dict:
-        return {"months3": {"ton": 8.2, "gram": 8.2}, "months6": {"ton": 11.0, "gram": 11.0},
-                "months12": {"ton": 19.9, "gram": 19.9}}
+        return {"months3": {"ton": 12.18, "gram": 12.18}, "months6": {"ton": 16.25, "gram": 16.25},   # Fragment today
+                "months12": {"ton": 29.47, "gram": 29.47}}
 
     async def _fragment_tx(self, gram: float) -> dict:
         return {"transaction": {"validUntil": int(time.time()) + 300,

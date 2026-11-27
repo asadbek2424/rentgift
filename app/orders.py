@@ -198,7 +198,7 @@ async def _listing(ctx: AppContext, nft_address: str) -> dict:
 async def quote_for(ctx: AppContext, nft_address: str, days: int, raw: bool = False):
     listing = await _listing(ctx, nft_address)
     try:
-        config = await pricing_config(ctx.rates)
+        config = (await pricing_config(ctx.rates)).for_category(listing.get("category"))
     except RateUnavailable:
         raise ServiceError("rate_unavailable", 503) from None
     low, high = rentable_days(listing["min_duration"], listing["max_duration"], config)
@@ -234,7 +234,7 @@ async def create_order(ctx: AppContext, user_id: int, nft_address: str, days: in
             raise ServiceError("too_many_orders", 429)
     listing = await _listing(ctx, nft_address)
     try:
-        config = await pricing_config(ctx.rates)
+        config = (await pricing_config(ctx.rates)).for_category(listing.get("category"))
     except RateUnavailable:
         raise ServiceError("rate_unavailable", 503) from None
     low, high = rentable_days(listing["min_duration"], listing["max_duration"], config)
@@ -377,7 +377,7 @@ async def extension_quote(ctx: AppContext, user_id: int, parent_id: int, days: i
     parent = await _extendable_parent(user_id, parent_id)
     max_days, ppd, _ = await _extension_terms(ctx, parent)
     try:
-        config = await pricing_config(ctx.rates)
+        config = (await pricing_config(ctx.rates)).for_category(parent.category)
     except RateUnavailable:
         raise ServiceError("rate_unavailable", 503) from None
     result = {"max_days": max_days, "per_day_uzs": make_quote(ppd, 1, config).per_day_uzs}
@@ -403,7 +403,7 @@ async def create_extension(ctx: AppContext, user_id: int, parent_id: int, days: 
     if not 1 <= days <= max_days:
         raise ServiceError("days_out_of_range")
     try:
-        config = await pricing_config(ctx.rates)
+        config = (await pricing_config(ctx.rates)).for_category(parent.category)
     except RateUnavailable:
         raise ServiceError("rate_unavailable", 503) from None
     quote = make_quote(ppd, days, config)

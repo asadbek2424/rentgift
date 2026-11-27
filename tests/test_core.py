@@ -899,3 +899,32 @@ def test_each_listing_keeps_its_own_minimum_days():
     from dataclasses import replace
     config = replace(config, min_days=3)                                 # shop floor still raises it when set
     assert rentable_days(86400, 30 * 86400, config) == (3, 30)
+
+
+def test_usernames_and_numbers_have_their_own_markup():
+    import asyncio
+    from app.db import Session, init_db, set_setting
+    from app.pricing import RateProvider, make_quote, pricing_config
+
+    async def scenario():
+        await init_db()
+        rates = RateProvider()
+        base = await pricing_config(rates)
+        assert base.for_category("username").markup_percent == base.markup_percent      # not set → gifts' %
+        async with Session() as session:
+            await set_setting(session, "username_markup_percent", "50")
+            await set_setting(session, "number_markup_percent", "0")
+        config = await pricing_config(rates)
+        assert config.for_category("username").markup_percent == 50
+        assert config.for_category("number").markup_percent == 0
+        assert config.for_category("gift").markup_percent == base.markup_percent
+        gift = make_quote(1_000_000_000, 2, config.for_category("gift"))
+        user = make_quote(1_000_000_000, 2, config.for_category("username"))
+        assert user.amount_uzs > gift.amount_uzs
+        async with Session() as session:
+            await set_setting(session, "username_markup_percent", "")
+            await set_setting(session, "number_markup_percent", "")
+        assert (await pricing_config(rates)).for_category("number").markup_percent == base.markup_percent
+        await rates.close()
+
+    asyncio.run(scenario())

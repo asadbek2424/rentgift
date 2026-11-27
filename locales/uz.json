@@ -626,7 +626,8 @@
     "balance_line": "Balansingiz: {amount}",
     "topup_link": "To'ldirish",
     "per_month": "{amount} / oy",
-    "checking": "Tekshirilmoqda…"
+    "checking": "Tekshirilmoqda…",
+    "fee_note": "Narxga Telegram tarmoq komissiyasi ham kiritilgan (≈{amount}). Narx dollar kursiga qarab o'zgaradi."
   },
   "ref": {
     "title": "Referal",

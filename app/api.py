@@ -350,6 +350,7 @@ async def _other_category(category: str, sort: str, cursor: str | None, q: str |
         if not collected:
             raise HTTPException(503, detail={"code": "marketapp"}) from None
     cards = []
+    config = config.for_category(category) if config else None
     for item in collected:
         card = gift_card(item, config)
         card.update({"category": category, "image": "", "collection": card["name"], "number": ""})
@@ -431,6 +432,7 @@ async def gift_detail(address: str, user: CurrentUser = Depends(current_user)):
         config = await pricing_config(ctx.rates)
     except RateUnavailable:
         config = None
+    config = config.for_category(listing.get("category")) if config else None
     item = {"nft_address": listing["address"], "nft_name": listing["name"], "attributes": listing["attributes"],
             "price_per_day": listing["price_per_day"], "min_duration": listing["min_duration"],
             "max_duration": listing["max_duration"]}
@@ -548,7 +550,7 @@ async def favorites_list(user: CurrentUser = Depends(current_user)):
                 "price_per_day": str((live or {}).get("price_per_day") or fav["price_per_day"] or 0),
                 "min_duration": int((live or {}).get("min_duration") or 86400),
                 "max_duration": int((live or {}).get("max_duration") or 86400)}
-        card = gift_card(item, config)
+        card = gift_card(item, config.for_category((live or {}).get("_category")) if config else None)
         items.append({**card, "available": bool(live), "liked_price_ton": fav["price_per_day"]})
     return {"items": items}
 
@@ -770,7 +772,8 @@ async def stars_quote(quantity: int, user: CurrentUser = Depends(current_user)):
 async def premium_info(user: CurrentUser = Depends(current_user)):
     try:
         info = await shop.premium_info(get_context())
-        return {"plans": [{"months": p["months"], "price_uzs": p["price_uzs"]} for p in info["plans"]]}
+        return {"plans": [{"months": p["months"], "price_uzs": p["price_uzs"]} for p in info["plans"]],
+                "fee_uzs": info.get("fee_uzs", 0)}
     except shop.PurchaseError as exc:
         raise _shop_error(exc) from None
 
@@ -866,7 +869,8 @@ async def admin_stats(admin: CurrentUser = Depends(owner_user)):
                     "card_bank": await g("card_bank", s.card_bank),
                     "stars_markup_percent": await g("stars_markup_percent", s.stars_markup_percent),
                     "premium_markup_percent": await g("premium_markup_percent", s.premium_markup_percent),
-                    "referral_percent": await g("referral_percent", s.referral_percent)}
+                    "referral_percent": await g("referral_percent", s.referral_percent),
+                    **{k: await g(k, "" if getattr(s, k) is None else getattr(s, k)) for k in _USD_KEYS}}
         observed = await get_setting(session, "observed_fee_percent", None)
     try:
         config = await pricing_config(ctx.rates)
@@ -900,9 +904,18 @@ class SettingsBody(BaseModel):
     stars_markup_percent: str | None = None
     premium_markup_percent: str | None = None
     referral_percent: str | None = None
+    stars_usd_per_1000: str | None = None
+    username_markup_percent: str | None = None
+    number_markup_percent: str | None = None
+    premium_usd_3: str | None = None
+    premium_usd_6: str | None = None
+    premium_usd_12: str | None = None
+    fragment_fee_ton: str | None = None
 
 
-_LIMITS = {"stars_markup_percent": (0, 500), "premium_markup_percent": (0, 500), "referral_percent": (0, 50),"markup_percent": (0, 1000), "fee_percent": (0, 100), "profit_fixed_uzs": (0, 100_000_000),
+_USD_KEYS = ("username_markup_percent", "number_markup_percent", "stars_usd_per_1000", "premium_usd_3", "premium_usd_6", "premium_usd_12", "fragment_fee_ton")
+_LIMITS = {"username_markup_percent": (0, 1000), "number_markup_percent": (0, 1000), "stars_usd_per_1000": (0, 1000), "premium_usd_3": (0, 1000), "premium_usd_6": (0, 1000),
+           "premium_usd_12": (0, 1000), "fragment_fee_ton": (0, 5), "stars_markup_percent": (0, 500), "premium_markup_percent": (0, 500), "referral_percent": (0, 50),"markup_percent": (0, 1000), "fee_percent": (0, 100), "profit_fixed_uzs": (0, 100_000_000),
            "service_fee_uzs": (0, 100_000_000), "service_fee_ton": (0, 1000), "min_rent_days": (1, 180),
            "round_to": (1, 100_000), "manual_rate": (0, 10_000_000_000)}
 
@@ -911,6 +924,9 @@ _LIMITS = {"stars_markup_percent": (0, 500), "premium_markup_percent": (0, 500),
 async def admin_settings(body: SettingsBody, admin: CurrentUser = Depends(owner_user)):
     values = body.model_dump(exclude_none=True)
     for key, (low, high) in _LIMITS.items():
+        if key in ("username_markup_percent", "number_markup_percent") and key in values and not values[key].strip():
+            values[key] = ""                     # empty = same % as gifts
+            continue
         if key in values:
             try:
                 number = Decimal((values[key] or "0").replace(",", ".").replace(" ", ""))

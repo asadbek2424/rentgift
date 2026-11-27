@@ -8,8 +8,15 @@ const FIELDS = [
   ['fee_percent', 'Marketapp komissiyasi, %', 'Marketapp ijara narxi ustiga oladigan haq (xarajatingiz)'],
   ['min_rent_days', 'Minimal ijara, kun', "1 qo'ysangiz — har bir gift Marketapp'dagi o'z minimumi bilan (1 yoki 3 kun). Kattaroq son hammasiga majburiy minimum bo'ladi"],
   ['round_to', 'Yaxlitlash', 'Kunlik narx shu songa yuqoriga yaxlitlanadi'],
-  ['stars_markup_percent', 'Stars ustamasi, %', ''],
-  ['premium_markup_percent', 'Premium ustamasi, %', ''],
+  ['username_markup_percent', 'Username ustamasi, %', "Ijaradagi @username'lar uchun. Bo'sh = giftlar foizi bilan bir xil"],
+  ['number_markup_percent', 'Anonim raqam ustamasi, %', "+888 raqamlar uchun. Bo'sh = giftlar foizi bilan bir xil"],
+  ['stars_markup_percent', 'Stars ustamasi, %', 'Dollar narxi + tarmoq komissiyasi ustiga'],
+  ['premium_markup_percent', 'Premium ustamasi, %', 'Dollar narxi + tarmoq komissiyasi ustiga'],
+  ['stars_usd_per_1000', '1 000 Stars narxi, $', "Fragment: 1 000 = $15. So'm narxi CBU dollar kursi bilan o'zgaradi. 0 = jonli TON narxi"],
+  ['premium_usd_3', 'Premium 3 oy, $', 'Fragment: $11.99'],
+  ['premium_usd_6', 'Premium 6 oy, $', 'Fragment: $15.99'],
+  ['premium_usd_12', 'Premium 12 oy, $', 'Fragment: $28.99'],
+  ['fragment_fee_ton', 'Tarmoq komissiyasi, TON', "Har Stars/Premium xaridida: 0.1 TON ketadi, ~0.045 qaytadi → 0.055. Jonli kursda so'mga aylanib narxga qo'shiladi"],
   ['referral_percent', 'Referal bonusi, %', "Do'st to'lovidan taklif qilganga"],
 ];
 const num = (v) => Number(String(v ?? '0').replace(',', '.').replace(/\s/g, '')) || 0;
@@ -44,7 +51,8 @@ export default function Finance() {
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const save = () => act(() => adminApi('/settings', { method: 'POST', body: Object.fromEntries(
     ['fee_percent', 'markup_percent', 'service_fee_uzs', 'service_fee_ton', 'min_rent_days', 'round_to', 'rate_mode', 'manual_rate',
-      'stars_markup_percent', 'premium_markup_percent', 'referral_percent'].map((k) => [k, String(form[k] ?? '')])) }), '💾 Narx sozlamalari saqlandi')
+      'stars_markup_percent', 'premium_markup_percent', 'referral_percent',
+      'username_markup_percent', 'number_markup_percent', 'stars_usd_per_1000', 'premium_usd_3', 'premium_usd_6', 'premium_usd_12', 'fragment_fee_ton'].map((k) => [k, String(form[k] ?? '')])) }), '💾 Narx sozlamalari saqlandi')
     .then((r) => r && reload());
 
   return (

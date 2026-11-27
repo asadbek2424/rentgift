@@ -626,7 +626,8 @@
     "balance_line": "Your balance: {amount}",
     "topup_link": "Top up",
     "per_month": "{amount} / mo",
-    "checking": "Checking…"
+    "checking": "Checking…",
+    "fee_note": "The Telegram network fee is already included (≈{amount}). Prices follow the dollar rate."
   },
   "ref": {
     "title": "Referral",

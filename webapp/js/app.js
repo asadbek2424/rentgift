@@ -382,7 +382,7 @@ async function otherCatalogView(view) {
 function giftCard(g) {
   const sub = g.number ? `#${g.number}` : [g.model, g.backdrop].filter(Boolean).join(' · ') || t('catalog.days_range', { min: g.min_days, max: g.max_days });
   return `<div class="gift-card" role="button" tabindex="0" data-gift="${esc(g.address)}">
-    <div class="gift-img">${giftImage(g.image, g.name)}</div>
+    <div class="gift-img">${giftImage(g.image, g.name)}${g.max_days ? `<span class="days-badge">${icons.repeat}${esc(t('catalog.days_range', { min: g.min_days, max: g.max_days }))}</span>` : ''}</div>
     <div class="gift-meta"><div class="gift-name">${esc(g.collection || g.name)}</div><div class="gift-sub">${esc(sub)}</div></div>
     ${priceBtn(g)}</div>`;
 }

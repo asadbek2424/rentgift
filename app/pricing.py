@@ -18,7 +18,7 @@ import asyncio
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 
 import httpx
@@ -85,6 +85,24 @@ class RateProvider:
     async def auto_rate(self) -> Decimal:
         return (await self.rates())[0]
 
+    async def usd_rate(self) -> Decimal | None:
+        """So'm per dollar (CBU), hourly; last good value on failure, None if never known."""
+        if self._usd is not None and time.monotonic() - self._usd[1] < self.USD_TTL:
+            return self._usd[0]
+        if time.monotonic() - getattr(self, "_usd_failed", -1e9) < 60:      # don't hammer CBU while it is down
+            return self._usd[0] if self._usd else (self._value[2] if self._value else None)
+        try:
+            cbu = await self._http.get("https://cbu.uz/uz/arkhiv-kursov-valyut/json/USD/")
+            cbu.raise_for_status()
+            value = Decimal(str(cbu.json()[0]["Rate"]))
+            if value <= 0:
+                raise ValueError("non-positive rate")
+            self._usd = (value, time.monotonic())
+        except Exception as exc:  # noqa: BLE001
+            log.warning("USD rate refresh failed: %s", type(exc).__name__)
+            self._usd_failed = time.monotonic()
+        return self._usd[0] if self._usd else (self._value[2] if self._value else None)
+
     def cached_usd(self) -> tuple[Decimal, Decimal] | None:
         """(usd per ton, uzs per usd) if known — used only for display."""
         return (self._value[1], self._value[2]) if self._value else None
@@ -101,6 +119,12 @@ class PricingConfig:
     uzs_per_usd: Decimal | None = None
     service_fee: Decimal = Decimal(0)     # so'm per order ("Xizmat haqi")
     min_days: int = 1                     # shortest rental the shop offers
+    category_markup: tuple = ()           # (("username", Decimal), ("number", Decimal)) — own % where set
+
+    def for_category(self, category: str | None) -> "PricingConfig":
+        """Same config with the markup of usernames / anonymous numbers when the admin set one."""
+        own = dict(self.category_markup).get(category or "gift")
+        return replace(self, markup_percent=own) if own is not None else self
 
     def cost_nano(self, base_nano: int) -> int:
         return int((Decimal(base_nano) * (1 + self.fee_percent / 100)).to_integral_value(rounding=ROUND_CEILING))
@@ -133,6 +157,15 @@ async def pricing_config(rates: RateProvider) -> PricingConfig:
         service_fee = await _num(session, "service_fee_uzs", settings.service_fee_uzs)
         service_fee_ton = await _num(session, "service_fee_ton", settings.service_fee_ton)
         min_days = int(await _num(session, "min_rent_days", settings.min_rent_days))
+        category_markup = []
+        for cat in ("username", "number"):
+            raw = await get_setting(session, f"{cat}_markup_percent", None)
+            raw = raw if raw not in (None, "") else getattr(settings, f"{cat}_markup_percent")
+            try:
+                if raw not in (None, ""):
+                    category_markup.append((cat, Decimal(str(raw))))
+            except Exception:  # noqa: BLE001
+                pass
     uzs_per_usd = None
     if mode == "manual":
         if manual <= 0:
@@ -152,7 +185,8 @@ async def pricing_config(rates: RateProvider) -> PricingConfig:
         service_fee = Decimal(round_up(service_fee_ton * rate, max(1, round_to)))
     return PricingConfig(rate_uzs_per_ton=rate, fee_percent=fee, markup_percent=markup, fixed_per_day=fixed,
                          round_to=max(1, round_to), rate_mode=mode, uzs_per_usd=uzs_per_usd,
-                         service_fee=max(Decimal(0), service_fee), min_days=max(1, min_days))
+                         service_fee=max(Decimal(0), service_fee), min_days=max(1, min_days),
+                         category_markup=tuple(category_markup))
 
 
 def round_up(value: Decimal, step: int) -> int:

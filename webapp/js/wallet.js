@@ -231,7 +231,8 @@ export async function starsView(view, h) {
       <div class="pk-list">${info.plans.map(p => row('m', p.months, h.esc(t('stars.months', { n: p.months })), p.price_uzs, '',
         disc(p) > 0 ? `<span class="pk-badge">-${disc(p)}%</span>` : `<small class="pk-sub">${h.esc(t('stars.per_month', { amount: money(Math.round(p.price_uzs / p.months)) }))}</small>`)).join('')}</div>`;
   }
-  view.innerHTML = `<div class="sp-wrap">${body}
+  const feeNote = info.fee_uzs ? `<p class="sp-fee">${h.esc(t('stars.fee_note', { amount: money(info.fee_uzs) }))}</p>` : '';
+  view.innerHTML = `<div class="sp-wrap">${body}${feeNote}
     <p class="sp-bal">${h.esc(t('stars.balance_line', { amount: money(balance) }))} · <button class="link-btn" id="topup">${h.esc(t('stars.topup_link'))}</button></p>
     <button class="link-btn sp-hist" id="hist">${h.esc(t('stars.history'))}</button><div id="plist" hidden></div></div>
     <div class="sp-cta"><button class="btn" id="buy" disabled>${h.esc(t('stars.choose'))}</button></div>`;
