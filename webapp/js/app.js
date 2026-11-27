@@ -699,6 +699,57 @@ function breakdown(perDay, days, fee, total, add = 0, discount = 0) {
     <div class="kv"><span><b style="color:var(--text)">${esc(t('price.total'))}</b></span><b style="font-size:17px">${money(total)}</b></div></div>`;
 }
 
+// ------------------------------------------------------------------ animated gifts (Lottie from Fragment)
+// The static .webp is shown at once; the animation (model only, transparent) is drawn over the gift's backdrop
+// gradient and fades in when ready. If anything fails, the static picture simply stays.
+let lottieLoading = null;
+function loadLottie() {
+  if (window.lottie) return Promise.resolve(window.lottie);
+  return lottieLoading || (lottieLoading = new Promise((ok, fail) => {
+    const s = document.createElement('script');
+    s.src = '/static/js/vendor/lottie_light.min.js?v=5.12.2';
+    s.onload = () => (window.lottie ? ok(window.lottie) : fail());
+    s.onerror = () => { lottieLoading = null; fail(); };
+    document.head.appendChild(s);
+  }));
+}
+
+function animKey(image) {
+  const url = Array.isArray(image) ? image[0] : image;
+  const m = /nft\.fragment\.com\/gift\/([a-z0-9]+-\d+)\.webp/.exec(url || '');
+  return m ? m[1] : null;
+}
+
+async function animateHero(hero, image, colors) {
+  const key = animKey(image);
+  if (!key || !hero || hero.querySelector('.gift-anim')) return;
+  let data, lib;
+  try {
+    [lib, data] = await Promise.all([loadLottie(), fetch(`/api/gift-anim/${key}`).then(r => (r.ok ? r.json() : null))]);
+  } catch { return; }
+  if (!data || !hero.isConnected || hero.querySelector('.gift-anim')) return;
+  const box = document.createElement('div');
+  box.className = 'gift-anim';
+  if (Array.isArray(colors) && colors[0]) box.style.background = `radial-gradient(circle at 50% 46%, ${colors[0]} 0%, ${colors[1] || colors[0]} 78%)`;
+  else {
+    const src = hero.querySelector('img')?.src;
+    if (src) { const bg = document.createElement('i'); bg.className = 'ga-blur'; bg.style.backgroundImage = `url("${src}")`; box.appendChild(bg); }
+  }
+  const stage = document.createElement('div');
+  stage.className = 'ga-stage';
+  box.appendChild(stage);
+  hero.insertBefore(box, hero.querySelector('.gd-title'));
+  let anim;
+  try {
+    anim = lib.loadAnimation({ container: stage, renderer: 'svg', loop: true, autoplay: true, animationData: data,
+      rendererSettings: { preserveAspectRatio: 'xMidYMid meet', progressiveLoad: true } });
+  } catch { box.remove(); return; }
+  anim.addEventListener('DOMLoaded', () => requestAnimationFrame(() => box.classList.add('on')));
+  anim.addEventListener('data_failed', () => box.remove());
+  // stop the animation loop once the sheet is closed
+  const watch = setInterval(() => { if (!box.isConnected) { clearInterval(watch); anim.destroy(); } }, 1500);
+}
+
 // ------------------------------------------------------------------ gift sheet
 function giftSheet(g) {
   let days = Math.max(g.min_days, Math.min(g.max_days, 1));
@@ -732,16 +783,18 @@ function giftSheet(g) {
   openSheet(html, (sheet, close) => {
     sheet.classList.add('gift-sheet');
     // rarity of each trait in the collection (Marketapp collection attributes, cached on the server)
+    const hero = $('.gift-hero', sheet);
     if (attrs.length && !other) {
       api.traits(g.address).then(r => {
+        animateHero(hero, g.image, r.backdrop_colors);
         (r.traits || []).forEach(x => {
           const chip = sheet.querySelector(`[data-tr="${x.trait}"]`);
           if (!chip) return;
           if (x.perc) { chip.textContent = `${x.perc}%`; chip.classList.remove('loading'); } else chip.remove();
         });
         sheet.querySelectorAll('.rar.loading').forEach(c => c.remove());
-      }).catch(() => sheet.querySelectorAll('.rar').forEach(c => c.remove()));
-    }
+      }).catch(() => { sheet.querySelectorAll('.rar').forEach(c => c.remove()); animateHero(hero, g.image, null); });
+    } else if (!other) animateHero(hero, g.image, null);
     sheet.parentElement.classList.add('gift-ov');   // see-through backdrop: the gift floats over the blurred app
     let seq = 0;
     let promo = null;                                // {code, discount_uzs}

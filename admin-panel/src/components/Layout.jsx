@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate, Outlet, Navigate } from 'react-route
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Wallet, Users, Megaphone, ScrollText, Settings, Search, Bot, Menu, X, LogOut, RefreshCw,
-  ShoppingBag, Star, Calculator, ExternalLink, SlidersHorizontal, Radio, Link2Off, TicketPercent, PieChart,
+  ShoppingBag, Star, Calculator, ExternalLink, SlidersHorizontal, Radio, Link2Off, TicketPercent, PieChart, ShieldCheck,
 } from 'lucide-react';
 import { Avatar, Toast } from './ui.jsx';
 import { useApi, getSession, getAdmin, clearSession, api } from '../data/api.js';
@@ -27,6 +27,7 @@ const NAV = (c = {}) => [
     { to: '/channels', label: 'Majburiy kanallar', icon: Radio, owner: true },
   ] },
   { group: 'Tizim', items: [
+    { to: '/staff', label: 'Adminlar', icon: ShieldCheck, owner: true },
     { to: '/activity', label: 'Faoliyat logi', icon: ScrollText },
     { to: '/bot-settings', label: 'Bot sozlamalari', icon: SlidersHorizontal, owner: true },
     { to: '/settings', label: 'Karta va hamyon', icon: Settings, owner: true },

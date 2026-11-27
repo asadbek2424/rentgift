@@ -17,6 +17,7 @@ import Channels from './pages/Channels.jsx';
 import ConnectIssues from './pages/ConnectIssues.jsx';
 import Promos from './pages/Promos.jsx';
 import Analytics from './pages/Analytics.jsx';
+import Staff from './pages/Staff.jsx';
 import Login from './pages/Login.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -39,6 +40,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="connect-issues" element={<ConnectIssues />} />
           <Route path="promos" element={<Promos />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="staff" element={<Staff />} />
           <Route path="*" element={<Dashboard />} />
         </Route>
       </Routes>

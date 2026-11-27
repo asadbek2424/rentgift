@@ -1169,3 +1169,11 @@ body.scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overflow: 
 .promo-on button { background: none; border: 0; color: var(--muted); font: inherit; font-size: 12px; text-decoration: underline; padding: 0 0 0 4px; }
 .kv.disc b, .kv.disc span { color: #3fe39a; }
 #rerent svg { vertical-align: -3px; margin-right: 4px; }
+
+/* ---------------------------------------------------------------- animated gift (Lottie over the backdrop) */
+.gift-anim { position: absolute; inset: 0; opacity: 0; transition: opacity .45s ease; overflow: hidden; z-index: 1; }
+.gift-anim.on { opacity: 1; }
+.gift-anim .ga-blur { position: absolute; inset: -20%; background: center / cover no-repeat; filter: blur(26px) saturate(1.25); transform: scale(1.15); }
+.gift-anim .ga-stage { position: absolute; left: 17%; top: 9%; width: 66%; height: 66%; }
+.gift-anim .ga-stage svg { width: 100% !important; height: 100% !important; }
+.gift-hero .gd-title { z-index: 2; }

@@ -703,12 +703,45 @@ async def export_csv(kind: str, days: int = 0, admin: CurrentUser = Depends(owne
                     headers={"Content-Disposition": f'attachment; filename="{kind}-{stamp}.csv"'})
 
 
-# ---------------------------------------------------------------------------- staff (who has access)
+# ---------------------------------------------------------------------------- staff: admins & operators
+class StaffBody(BaseModel):
+    id: int
+    role: str = Field(default="owner", pattern="^(owner|operator)$")
+
+
 @router.get("/staff")
-async def staff(admin: CurrentUser = Depends(admin_user)):
-    s = get_context().settings
-    async with Session() as session:
-        people = {u.id: u for u in (await session.execute(select(User).where(User.id.in_(s.staff_ids)))).scalars()}
-    return {"me": {"id": admin.id, "role": admin.role or "owner"},
-            "items": [{"id": i, "role": s.role_of(i), "name": _name(people.get(i)) or str(i),
-                       "username": people[i].username if i in people else ""} for i in s.staff_ids]}
+async def staff_list(admin: CurrentUser = Depends(admin_user)):
+    from . import staff
+    return {"me": {"id": admin.id, "role": admin.role or "owner"}, "items": await staff.describe()}
+
+
+@router.post("/staff")
+async def staff_add(body: StaffBody, admin: CurrentUser = Depends(owner_user)):
+    from . import staff
+    try:
+        await staff.add(body.id, body.role, admin.id)
+    except staff.StaffError as exc:
+        raise HTTPException(400, detail={"code": "staff", "error": str(exc)}) from None
+    ctx = get_context()
+    sent = False
+    if ctx.bot is not None:
+        what = "admin (egasi)" if body.role == "owner" else "operator"
+        try:
+            await ctx.bot.send_message(body.id, f"🔐 Siz {ctx.settings.app_name} botiga <b>{what}</b> qilib qo'shildingiz.\n\n"
+                                                f"Admin panelga kirish uchun /panel buyrug'ini yuboring.", parse_mode="HTML")
+            sent = True
+        except Exception:  # noqa: BLE001 - the person has not started the bot yet
+            log.info("New staff %s has not started the bot", body.id)
+    log.info("Staff %s added as %s by %s", body.id, body.role, admin.id)
+    return {"ok": True, "notified": sent, "items": await staff.describe()}
+
+
+@router.delete("/staff/{user_id}")
+async def staff_remove(user_id: int, admin: CurrentUser = Depends(owner_user)):
+    from . import staff
+    try:
+        await staff.remove(user_id, admin.id)
+    except staff.StaffError as exc:
+        raise HTTPException(400, detail={"code": "staff", "error": str(exc)}) from None
+    log.info("Staff %s removed by %s", user_id, admin.id)
+    return {"ok": True, "items": await staff.describe()}

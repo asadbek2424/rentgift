@@ -855,3 +855,36 @@ def test_roles_analytics_and_csv_export():
             assert {x["role"] for x in staff["items"]} == {"owner", "operator"}
         finally:
             s.admin_ids, s.operator_ids = old_admins, old_ops
+
+
+def test_add_and_remove_admins_from_panel(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import admin_auth, staff
+    from app.main import create_app
+
+    with TestClient(create_app()) as client:
+        from app.context import get_context
+        s = get_context().settings
+        old = (list(s.admin_ids), list(s.operator_ids))
+        monkeypatch.setattr(staff, "_env", {"admins": [901], "operators": []})
+        s.admin_ids, s.operator_ids = [901], []
+        try:
+            owner = {"Authorization": "Bearer " + admin_auth.make_token(s, 901)[0]}
+            r = client.post("/api/panel/staff", headers=owner, json={"id": 777, "role": "owner"})
+            assert r.status_code == 200 and 777 in s.admin_ids
+            r = client.post("/api/panel/staff", headers=owner, json={"id": 778, "role": "operator"})
+            assert 778 in s.operator_ids and 778 not in s.admin_ids
+            new_admin = {"Authorization": "Bearer " + admin_auth.make_token(s, 777)[0]}
+            assert client.get("/api/panel/config", headers=new_admin).status_code == 200     # full owner rights
+            op = {"Authorization": "Bearer " + admin_auth.make_token(s, 778)[0]}
+            assert client.post("/api/panel/staff", headers=op, json={"id": 5, "role": "owner"}).status_code == 403
+            items = {i["id"]: i for i in client.get("/api/panel/staff", headers=owner).json()["items"]}
+            assert items[901]["fixed"] and not items[777]["fixed"] and items[778]["role"] == "operator"
+            assert client.delete("/api/panel/staff/901", headers=new_admin).status_code == 400  # env owner is protected
+            assert client.delete("/api/panel/staff/777", headers=new_admin).status_code == 400  # not yourself
+            assert client.delete("/api/panel/staff/777", headers=owner).status_code == 200
+            assert 777 not in s.admin_ids
+            assert client.get("/api/panel/config", headers=new_admin).status_code == 401      # access gone at once
+            client.delete("/api/panel/staff/778", headers=owner)
+        finally:
+            s.admin_ids, s.operator_ids = old

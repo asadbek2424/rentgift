@@ -446,7 +446,27 @@ async def gift_traits(address: str, user: CurrentUser = Depends(current_user)):
         listing = await svc._listing(ctx, address)
     except svc.ServiceError as exc:
         raise _error(exc) from None
-    return {"traits": await rarity.traits(ctx, listing)}
+    from . import gift_assets
+    from .pricing import attr
+    backdrop = attr(listing.get("attributes") or [], "Backdrop")
+    try:
+        colors = (await gift_assets.backdrops()).get(backdrop) if backdrop else None
+    except Exception:  # noqa: BLE001 - colours are decoration only
+        colors = None
+    return {"traits": await rarity.traits(ctx, listing), "backdrop": backdrop, "backdrop_colors": colors}
+
+
+@router.get("/gift-anim/{key}")
+async def gift_animation(key: str):
+    """Animated (Lottie) version of a gift picture, proxied from Fragment and cached. 404 when there is none."""
+    from fastapi.responses import Response
+    from . import gift_anim
+    if not gift_anim.valid(key):
+        raise HTTPException(404, detail={"code": "not_found"})
+    data = await gift_anim.get(key)
+    if not data:
+        raise HTTPException(404, detail={"code": "not_found"})
+    return Response(data, media_type="application/json", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @router.get("/quote")
