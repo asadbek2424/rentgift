@@ -86,7 +86,17 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(title="GiftRent", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.include_router(api_router)
+    from .panel import router as panel_router
+    app.include_router(panel_router)
     app.add_exception_handler(orders.ServiceError, service_error_handler)
+
+    # The standalone admin panel lives on another domain (Vercel / second Railway service): allow it via CORS.
+    origins = get_settings().admin_origins
+    if origins:
+        from fastapi.middleware.cors import CORSMiddleware
+        app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=False,
+                           allow_methods=["GET", "POST", "OPTIONS"],
+                           allow_headers=["Authorization", "Content-Type", "X-Telegram-Init-Data"], max_age=600)
 
     @app.get("/health")
     async def health():

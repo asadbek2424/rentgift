@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from . import admin_auth
 from . import orders as svc
 from . import purchases as shop
 from . import wallet
@@ -67,10 +68,95 @@ async def current_user(x_telegram_init_data: str = Header(default="")) -> Curren
                        last_name=user.last_name, username=user.username, photo_url=user.photo_url)
 
 
-async def admin_user(user: CurrentUser = Depends(current_user)) -> CurrentUser:
+async def admin_user(x_telegram_init_data: str = Header(default=""),
+                     authorization: str = Header(default="")) -> CurrentUser:
+    """Admin endpoints accept either Telegram initData (Mini App) or a panel session token (standalone site)."""
+    settings = get_context().settings
+    if authorization.lower().startswith("bearer "):
+        admin_id = admin_auth.check_token(settings, authorization[7:].strip())
+        if admin_id is None:
+            raise HTTPException(401, detail={"code": "auth"})
+        async with Session() as session:
+            db_user = await session.get(User, admin_id)
+        return CurrentUser(id=admin_id, lang=(db_user.lang if db_user and db_user.lang else settings.default_lang),
+                           is_admin=True, first_name=db_user.first_name if db_user else "Admin",
+                           last_name=db_user.last_name if db_user else "", username=db_user.username if db_user else "",
+                           photo_url=db_user.photo_url if db_user else "")
+    user = await current_user(x_telegram_init_data)
     if not user.is_admin:
         raise HTTPException(403, detail={"code": "auth"})
     return user
+
+
+# ---------------------------------------------------------------------------- admin panel login
+class CodeRequestBody(BaseModel):
+    admin_id: int
+
+
+class CodeVerifyBody(BaseModel):
+    admin_id: int
+    code: str = Field(min_length=4, max_length=12)
+
+
+class PasswordBody(BaseModel):
+    admin_id: int
+    password: str = Field(min_length=1, max_length=200)
+
+
+def _session(admin_id: int) -> dict:
+    token, exp = admin_auth.make_token(get_context().settings, admin_id)
+    return {"token": token, "expires_at": exp, "admin_id": admin_id}
+
+
+@router.get("/admin-auth/info")
+async def admin_auth_info():
+    ctx = get_context()
+    s = ctx.settings
+    return {"app": s.app_name, "bot_username": ctx.bot_username, "code_login": ctx.bot is not None,
+            "password_login": bool(s.admin_panel_password), "default_lang": s.default_lang}
+
+
+@router.post("/admin-auth/request-code")
+async def admin_request_code(body: CodeRequestBody):
+    ctx = get_context()
+    # Same answer for unknown IDs, so the endpoint can't be used to discover admin IDs.
+    if body.admin_id in ctx.settings.admin_ids and ctx.bot is not None:
+        code = admin_auth.new_code(body.admin_id)
+        if code is None:
+            raise HTTPException(429, detail={"code": "too_many"})
+        try:
+            await ctx.bot.send_message(body.admin_id, f"🔐 Admin panel: <code>{code}</code>\n"
+                                       f"5 daqiqa amal qiladi. Siz so'ramagan bo'lsangiz, hech kimga bermang.",
+                                       parse_mode="HTML")
+        except Exception:  # noqa: BLE001 — admin never started the bot, etc.
+            log.warning("Could not send admin login code to %s", body.admin_id)
+    return {"ok": True}
+
+
+@router.post("/admin-auth/verify")
+async def admin_verify_code(body: CodeVerifyBody):
+    if body.admin_id not in get_context().settings.admin_ids or not admin_auth.verify_code(body.admin_id, body.code):
+        raise HTTPException(401, detail={"code": "bad_code"})
+    return _session(body.admin_id)
+
+
+@router.post("/admin-auth/password")
+async def admin_password_login(body: PasswordBody):
+    s = get_context().settings
+    if admin_auth.password_locked(body.admin_id):
+        raise HTTPException(429, detail={"code": "too_many"})
+    if body.admin_id not in s.admin_ids or not admin_auth.check_password(s, body.password, body.admin_id):
+        raise HTTPException(401, detail={"code": "bad_code"})
+    return _session(body.admin_id)
+
+
+@router.get("/admin/me")
+async def admin_me(admin: CurrentUser = Depends(admin_user)):
+    s = get_context().settings
+    return {"user": admin.model_dump(),
+            "app": {"name": s.app_name, "wallet_mode": s.wallet_mode, "admin_wallet": s.admin_wallet_address,
+                    "admin_wallet_raw": _raw(s.admin_wallet_address), "webapp_url": s.webapp_base,
+                    "manifest_url": f"{s.webapp_base}/tonconnect-manifest.json", "demo": s.demo_mode}}
 
 
 def _error(exc: svc.ServiceError) -> HTTPException:
@@ -108,7 +194,8 @@ async def me(user: CurrentUser = Depends(current_user)):
                     "wallet_mode": s.wallet_mode, "topup_min": s.topup_min_uzs, "topup_max": s.topup_max_uzs,
                     "admin_wallet": s.admin_wallet_address if user.is_admin else "",
                     "admin_wallet_raw": _raw(s.admin_wallet_address) if user.is_admin else "", "demo": s.demo_mode,
-                    "manifest_url": f"{s.webapp_base}/tonconnect-manifest.json"}}
+                    "manifest_url": f"{s.webapp_base}/tonconnect-manifest.json",
+                    "admin_panel_url": s.admin_panel_url if user.is_admin else ""}}
 
 
 class LangBody(BaseModel):

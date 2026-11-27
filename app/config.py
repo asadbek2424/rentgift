@@ -85,6 +85,13 @@ class Settings(BaseSettings):
     rent_confirm_timeout_minutes: int = 15
     use_rent_events: bool = True             # follow Marketapp /v1/rent/events/ instead of polling /my-rented/ only
 
+    # --- Standalone admin panel (separate site: Vercel / Railway) ---------------
+    admin_panel_url: str = ""                # e.g. https://giftrent-admin.vercel.app — bot buttons open it
+    admin_panel_origins: str = ""            # extra CORS origins, comma separated (admin_panel_url is added automatically)
+    admin_secret: str = ""                   # signs admin sessions; empty = derived from BOT_TOKEN
+    admin_panel_password: str = ""           # optional fallback login (min 8 chars) when the bot can't send codes
+    admin_session_hours: int = 72
+
     # --- Backups ---------------------------------------------------------------
     backup_interval_hours: float = 24.0      # 0 = off
     backup_keep: int = 14                    # how many local backup files to keep
@@ -149,6 +156,16 @@ class Settings(BaseSettings):
     @property
     def webapp_base(self) -> str:
         return self.webapp_url.rstrip("/")
+
+    @property
+    def admin_origins(self) -> list[str]:
+        items = [o.strip().rstrip("/") for o in self.admin_panel_origins.split(",") if o.strip()]
+        if self.admin_panel_url:
+            from urllib.parse import urlsplit
+            parts = urlsplit(self.admin_panel_url.strip())
+            if parts.scheme and parts.netloc:
+                items.append(f"{parts.scheme}://{parts.netloc}")
+        return sorted(set(items))
 
     @property
     def card_bot_usernames(self) -> set[str]:

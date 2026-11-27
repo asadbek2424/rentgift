@@ -23,6 +23,25 @@ Admin mijozning akkauntiga, kodiga yoki paroliga hech qachon tegmaydi. Mijoz Tel
 - Katalogda faqat ijara davomida sotib bo'lmaydigan giftlar ko'rsatiladi (`include_sellable=false`), shunda ijara muddatidan oldin tugab qolmaydi.
 - Fragment cheklovi: bitta giftni soatiga 3 martadan ko'p ko'rsatib bo'lmaydi.
 
+## Yangilanish: Tower dizayni va alohida admin panel
+
+**Mini App dizayni** mockuplardagi "Tower" uslubiga 1:1 moslandi (qora grafit fon, ko'k aksent, porloq ikonlar):
+- Pastki menyu: **MARKET · INVENTAR · FAOLLIK · PROFIL** (to'ldirilgan ikonlar).
+- Header: avatar + «Stars ★», savat tugmasi (soni bilan), `[+ | balans so'm]` ko'k pill.
+- **Market**: kategoriyalar (Gift / Username / Raqam / ⭐ Stars), qidiruv, filtr pill'lari, gift kartalari (narx tugmasi + savat).
+- **Gift oynasi**: katta rasm ustida nom/raqam, atributlar jadvali, «Ko'rish / Ulashish / Savatga» tugmalari, «Ijaraga olish — summa».
+- **Inventar**: hozir ijaradagi giftlar, qolgan vaqt bilan.
+- **Faollik**: «Faol | Tarix» segmenti, ✓ Bajarildi / ❄ Yopilgan / ! Muammo holatlari, «Buyurtmaga o'tish».
+- **Savat**: «Hammasini tanlash», «Tanlanganni o'chirish», belgilash doirachalari (qurilmada saqlanadi).
+- **Profil**: porloq ikonlar (bilet, sumka, hamyon, karta, odamlar), tezkor tugmalar.
+- Ulashish: `t.me/<bot>?startapp=g_<manzil>` — havola ochilganda gift oynasi chiqadi.
+
+**Admin panel** endi alohida sayt: `admin-panel/` (React). Vercel'ga yuklash — `admin-panel/README.md`.
+Backend qo'shimchalari: `/api/panel/*` (login, dashboard, foydalanuvchilar, log, xabar tarqatish), CORS (`ADMIN_PANEL_URL`),
+botda `/panel` buyrug'i, admin tugmalari endi panel saytini ochadi. Mini App ichidagi eski admin `?admin=1` orqali zaxira sifatida qoladi.
+
+Yangi o'zgaruvchilar: `ADMIN_PANEL_URL`, `ADMIN_PANEL_ORIGINS`, `ADMIN_PANEL_PASSWORD`, `ADMIN_SECRET`, `ADMIN_SESSION_HOURS` (`.env.example`ga qarang).
+
 ## Nimalar bor
 
 | Qism | Tavsif |

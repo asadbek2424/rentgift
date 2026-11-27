@@ -31,6 +31,7 @@ async def configure_bot(bot: Bot, settings: Settings) -> None:
                     BotCommand(command="help", description=t(lang, "guide.title"))]
         await bot.set_my_commands(commands, language_code=lang)
     admin_commands = [BotCommand(command="admin", description="Admin"),
+                      BotCommand(command="panel", description="Admin panel (sayt) — kirish havolasi"),
                       BotCommand(command="broadcast", description="Broadcast / Рассылка / Xabar yuborish"),
                       BotCommand(command="backup", description="Backup / Zaxira"),
                       BotCommand(command="userbot", description="CardXabar akkaunt ulash / status"),

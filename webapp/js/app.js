@@ -1,6 +1,6 @@
 import { api, ApiError } from './api.js';
-import { art, icons, placeholder } from './icons.js';
-import { clock, dateTime, duration, lang, loadLang, money, t } from './i18n.js';
+import { art, flat, glow, icons, nav, placeholder } from './icons.js';
+import { clock, dateTime, duration, lang, loadLang, locale, money, t } from './i18n.js';
 
 const tg = window.Telegram?.WebApp;
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -12,8 +12,25 @@ const state = {
   me: null, tab: 'catalog', segment: 'all', sort: 'recently_touch', category: 'gift', q: '', starsSeg: 'stars',
   filters: { collections: [], model: '', backdrop: '', symbol: '', price_min: '', price_max: '', num_min: '', num_max: '' },
   gifts: [], cursor: null, giftsLoaded: false, giftsError: false, collections: null,
-  view: null, orders: null, timers: [], poll: null,
+  view: null, orders: null, timers: [], poll: null, actSeg: null, invQ: '',
+  cart: loadCart(), cartSel: new Set(),
 };
+
+// ------------------------------------------------------------------ cart (kept on this device)
+function loadCart() {
+  try { const v = JSON.parse(localStorage.getItem('gr_cart') || '[]'); return Array.isArray(v) ? v.slice(0, 100) : []; } catch { return []; }
+}
+function saveCart() { try { localStorage.setItem('gr_cart', JSON.stringify(state.cart)); } catch { /* private mode */ } }
+const inCart = address => state.cart.some(g => g.address === address);
+function toggleCart(g) {
+  haptic();
+  if (inCart(g.address)) { state.cart = state.cart.filter(x => x.address !== g.address); state.cartSel.delete(g.address); toast(t('ui.cart_removed')); }
+  else { state.cart.unshift(g); toast(t('ui.cart_added')); }
+  saveCart();
+  document.querySelectorAll(`[data-cart="${CSS.escape(g.address)}"]`).forEach(b => b.classList.toggle('on', inCart(g.address)));
+  const badge = document.querySelector('#tb-cart i');
+  if (badge) { badge.textContent = state.cart.length; badge.hidden = !state.cart.length; }
+}
 
 // ------------------------------------------------------------------ utilities
 export function toast(text, error = false) {
@@ -98,10 +115,18 @@ function avatarHtml(user) {
   return `<div class="avatar">${esc(initials.trim() || '?')}</div>`;
 }
 
+const TAB_LABEL = { catalog: 'nav.market', rentals: 'nav.inventory', activity: 'nav.activity', profile: 'nav.profile', stars: 'nav.stars', admin: 'nav.admin', guide: 'nav.guide' };
+
 function pageTitle() {
   if (state.view?.name === 'order') return t('order.title', { id: state.view.id });
   if (state.view) return t(`nav.${state.view.name}`);
-  return state.tab === 'catalog' ? '' : t(`nav.${state.tab}`);
+  return state.tab === 'catalog' ? '' : t(TAB_LABEL[state.tab] || `nav.${state.tab}`);
+}
+
+function pageSub() {
+  if (state.view?.name === 'cart') return t('ui.cart_sub');
+  if (state.view) return '';
+  return { rentals: t('ui.inv_sub'), activity: t('ui.act_sub') }[state.tab] || '';
 }
 
 function renderTopbar() {
@@ -110,16 +135,22 @@ function renderTopbar() {
   const left = state.view
     ? `<button class="icon-btn" id="tb-back" aria-label="back">${icons.chevronLeft}</button>`
     : `<button class="avatar-btn" id="tb-profile" aria-label="profile">${avatarHtml(user)}</button>
-       <button class="stars-pill" id="tb-stars">${icons.star}<span class="lbl">Stars</span></button>`;
+       <button class="stars-pill" id="tb-stars"><span class="lbl">Stars</span>${icons.star}</button>`;
+  const n = state.cart.length;
   const right = user
-    ? `<button class="plus-btn" id="tb-plus" aria-label="top up">${icons.plus}</button>
-       <button class="bal-blue" id="tb-bal">${esc(money(user.balance_uzs || 0))}</button>`
+    ? `<button class="round-btn" id="tb-cart" aria-label="${esc(t('nav.cart'))}">${flat.basket}<i ${n ? '' : 'hidden'}>${n}</i></button>
+       <div class="bal-pill"><button class="bal-plus" id="tb-plus" aria-label="top up">${icons.plus}</button>
+       <button class="bal-sum" id="tb-bal">${esc(Number(user.balance_uzs || 0).toLocaleString('ru-RU').replace(/,/g, ' '))}<span class="sum-ico">${esc(t('common.sum'))}</span></button></div>`
     : `<button class="icon-btn" id="tb-lang" aria-label="language">${icons.globe}</button>`;
   bar.innerHTML = `<div class="hdr">${left}</div><div class="hdr">${right}</div>`;
   const title = $('#page-title');
-  if (title) title.textContent = pageTitle();
+  if (title) {
+    const sub = pageSub();
+    title.innerHTML = pageTitle() ? `${esc(pageTitle())}${sub ? `<small>${esc(sub)}</small>` : ''}` : '';
+  }
+  $('#tb-cart', bar)?.addEventListener('click', () => openView('cart'));
   $('#tb-profile', bar)?.addEventListener('click', () => switchTab('profile'));
-  $('#tb-stars', bar)?.addEventListener('click', () => switchTab('stars'));
+  $('#tb-stars', bar)?.addEventListener('click', () => { state.category = 'stars'; switchTab('catalog'); });
   $('#tb-bal', bar)?.addEventListener('click', () => openView('balance'));
   $('#tb-plus', bar)?.addEventListener('click', () => openView('balance'));
   $('#tb-back', bar)?.addEventListener('click', goBack);
@@ -127,11 +158,11 @@ function renderTopbar() {
 }
 
 function renderTabbar() {
-  const tabs = [['catalog', icons.gift], ['rentals', icons.key], ['stars', icons.star], ['profile', icons.user]];
-  if (state.me?.user?.is_admin) tabs.push(['admin', icons.shield]);
+  const tabs = [['catalog', nav.market], ['rentals', nav.inventory], ['activity', nav.activity], ['profile', nav.profile]];
   const bar = $('#tabbar');
+  const current = state.tab === 'stars' ? 'catalog' : state.tab;
   bar.innerHTML = tabs.map(([id, icon]) =>
-    `<button class="tab ${state.tab === id && !state.view ? 'active' : ''}" data-tab="${id}">${icon}<span>${esc(t(`nav.${id}`))}</span></button>`).join('');
+    `<button class="tab ${current === id && !state.view ? 'active' : ''}" data-tab="${id}">${icon}<span>${esc(t(TAB_LABEL[id]))}</span></button>`).join('');
   bar.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 }
 
@@ -168,19 +199,24 @@ export async function render() {
   if (state.view?.name === 'guide') return guideView(view);
   if (state.view) {
     const mod = await import('./wallet.js');
+    if (state.view.name === 'cart') return cartView(view);
     const fn = { balance: mod.balanceView, topup: mod.topupView, referral: mod.referralView, top: mod.topView }[state.view.name];
     if (fn) return fn(view, helpers(), state.view.id);
   }
-  if (state.tab === 'stars') {
-    view.innerHTML = `<div class="seg">
+  if (state.tab === 'stars') { state.tab = 'catalog'; state.category = 'stars'; }
+  if (state.tab === 'catalog' && state.category === 'stars') {
+    view.innerHTML = banner() + categoryTabs() + `<div class="seg">
       <button data-sseg="stars" class="${state.starsSeg === 'stars' ? 'active' : ''}">${esc(t('stars.seg_stars'))}</button>
       <button data-sseg="premium" class="${state.starsSeg === 'premium' ? 'active' : ''}">${esc(t('stars.seg_premium'))}</button></div><div id="stars-body"></div>`;
     view.querySelectorAll('[data-sseg]').forEach(b => b.onclick = () => { state.starsSeg = b.dataset.sseg; haptic(); render(); });
+    bindCategoryTabs(view);
+    $('#banner', view).onclick = () => openView('guide');
     return (await import('./wallet.js')).starsView($('#stars-body', view), helpers());
   }
   if (state.tab === 'catalog' && state.category !== 'gift') return otherCatalogView(view);
   if (state.tab === 'catalog') return state.segment === 'all' ? catalogView(view) : collectionsView(view);
-  if (state.tab === 'rentals') return rentalsView(view);
+  if (state.tab === 'rentals') return inventoryView(view);
+  if (state.tab === 'activity') return rentalsView(view);
   if (state.tab === 'guide') return guideView(view);
   if (state.tab === 'profile') return profileView(view);
   if (state.tab === 'admin') {
@@ -199,7 +235,7 @@ function banner() {
 }
 
 function categoryTabs() {
-  return `<div class="cat-tabs">${['gift', 'username', 'number'].map(c =>
+  return `<div class="cat-tabs">${['gift', 'username', 'number', 'stars'].map(c =>
     `<button class="${state.category === c ? 'active' : ''}" data-cat="${c}">${esc(t(`cat.${c}`))}</button>`).join('')}</div>`;
 }
 
@@ -220,9 +256,17 @@ function nameTile(g) {
 }
 
 function priceBtn(g) {
-  const price = g.per_day_uzs != null ? money(g.per_day_uzs) : `${g.price_per_day_ton} TON`;
-  return `<div class="gift-foot"><span class="price-btn">${esc(price)}<small>${esc(t('catalog.per_day').replace(/\s/g, ''))}</small></span>
-    <span class="icon-sq">${icons.cart}</span></div>`;
+  const price = g.per_day_uzs != null ? Number(g.per_day_uzs).toLocaleString('ru-RU').replace(/,/g, ' ') : `${g.price_per_day_ton} TON`;
+  return `<div class="gift-foot"><span class="price-btn"><span class="sum-ico">${esc(t('common.sum'))}</span>${esc(price)}<small>${esc(t('catalog.per_day').replace(/\s/g, ''))}</small></span>
+    <button class="icon-sq ${inCart(g.address) ? 'on' : ''}" data-cart="${esc(g.address)}" aria-label="${esc(t('ui.to_cart'))}">${flat.basket}</button></div>`;
+}
+
+// Cart buttons live inside clickable cards: handle them first and stop the card from opening.
+function bindCartButtons(root, list) {
+  root.querySelectorAll('[data-cart]').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const g = list().find(x => x.address === b.dataset.cart); if (g) toggleCart(g);
+  });
 }
 
 function otherCard(g) {
@@ -270,6 +314,7 @@ async function otherCatalogView(view) {
     view.querySelectorAll('[data-gift]').forEach(b => b.onclick = () => {
       const g = state.other.items.find(x => x.address === b.dataset.gift); if (g) giftSheet(g);
     });
+    bindCartButtons(view, () => state.other?.items || []);
   };
   draw();
   if (!state.other?.loaded) { await loadOther(true); draw(); }
@@ -282,6 +327,8 @@ function giftCard(g) {
     <div class="gift-meta"><div class="gift-name">${esc(g.collection || g.name)}</div><div class="gift-sub">${esc(sub)}</div></div>
     ${priceBtn(g)}</div>`;
 }
+
+const giftBy = (list, address) => list.find(x => x.address === address);
 
 // Gift search: the Marketapp catalogue has no name search for gifts, so it filters the loaded cards.
 function matchGift(g) {
@@ -368,6 +415,7 @@ async function catalogView(view) {
     body.querySelectorAll('[data-gift]').forEach(b => b.onclick = () => {
       const g = state.gifts.find(x => x.address === b.dataset.gift); if (g) giftSheet(g);
     });
+    bindCartButtons(body, () => state.gifts);
   };
   const draw = () => {
     if (state.tab !== 'catalog' || state.segment !== 'all' || state.view) return;
@@ -542,13 +590,23 @@ function giftSheet(g) {
   const attrs = [['gift.model', g.model], ['gift.backdrop', g.backdrop], ['gift.symbol', g.symbol]].filter(([, v]) => v);
   const other = g.category && g.category !== 'gift';
   const title = !other && g.collection && g.number ? [g.collection, `#${g.number}`] : [g.name, ''];
+  const perDay = g.per_day_uzs != null ? Number(g.per_day_uzs).toLocaleString('ru-RU').replace(/,/g, ' ') : '—';
   const html = `
-    <div class="gift-hero">${other ? nameTile(g) : giftImage(g.image, g.name)}</div>
-    <div class="gd-title"><h3>${esc(title[0])}</h3>${title[1] ? `<span>${esc(title[1])}</span>` : ''}</div>
-    ${attrs.length ? `<div class="attr-table">${attrs.map(([k, v]) => `<div class="attr-row"><span>${esc(t(k))}</span><b>${esc(v)}</b></div>`).join('')}</div>` : ''}
-    <div class="card" style="padding:4px 14px 14px">
-      <div class="kv"><span>${esc(t('gift.per_day'))}</span><b>${g.per_day_uzs != null ? money(g.per_day_uzs) : '—'}</b></div>
-      <div class="kv" style="border:0;padding-bottom:6px"><span>${esc(t('gift.duration'))}</span><b class="muted" style="font-size:13px">${esc(t('gift.limits', { min: g.min_days, max: g.max_days }))}</b></div>
+    <div class="gd-card">
+      <div class="gift-hero">${other ? nameTile(g) : giftImage(g.image, g.name)}
+        <div class="gd-title"><h3>${esc(title[0])}</h3>${title[1] ? `<span>${esc(title[1])}</span>` : ''}</div></div>
+      <div class="attr-table">
+        ${attrs.map(([k, v]) => `<div class="attr-row"><span>${esc(t(k))}</span><b>${esc(v)}</b></div>`).join('')}
+        <div class="attr-row"><span>${esc(t('ui.price_day'))}</span><b>${esc(perDay)} <em class="pct">${esc(t('common.sum'))}</em></b></div>
+        <div class="attr-row"><span>${esc(t('gift.duration'))}</span><b><em class="pct">${esc(t('gift.limits', { min: g.min_days, max: g.max_days }))}</em></b></div>
+      </div>
+      <div class="gd-actions">
+        <button id="gd-view">${flat.eye}<span>${esc(t('ui.view'))}</span></button>
+        <button id="gd-share">${flat.share}<span>${esc(t('ui.share'))}</span></button>
+        <button id="gd-cart" class="${inCart(g.address) ? 'on' : ''}">${flat.basket}<span>${esc(t(inCart(g.address) ? 'ui.in_cart' : 'ui.to_cart'))}</span></button>
+      </div>
+    </div>
+    <div class="card" style="padding:14px">
       <div class="stepper"><button id="minus">−</button><div class="val"><b id="days"></b><span>${esc(t('gift.days'))}</span></div><button id="plus">+</button></div>
       <div class="chips mt" id="quick" style="margin-bottom:0"></div>
     </div>
@@ -556,7 +614,20 @@ function giftSheet(g) {
     <p class="note center">${esc(other ? t('catalog.other_hint') : t('gift.how'))}</p>
     <div class="sticky-cta"><button class="btn" id="rent">${esc(t('gift.rent'))}</button></div>`;
   openSheet(html, (sheet, close) => {
+    sheet.classList.add('gift-sheet');
     let seq = 0;
+    $('#gd-view', sheet).onclick = () => openLink(`https://tonviewer.com/${encodeURIComponent(g.address)}`);
+    $('#gd-share', sheet).onclick = () => {
+      const bot = state.me?.app?.bot_username;
+      const url = bot ? `https://t.me/${bot}?startapp=g_${g.address}` : location.href;
+      const share = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`${t('ui.share_text')}: ${g.name}`)}`;
+      if (tg?.openTelegramLink && bot) tg.openTelegramLink(share); else copy(url);
+    };
+    $('#gd-cart', sheet).onclick = e => {
+      toggleCart(g);
+      const b = e.currentTarget; b.classList.toggle('on', inCart(g.address));
+      $('span', b).textContent = t(inCart(g.address) ? 'ui.in_cart' : 'ui.to_cart');
+    };
     const quick = [1, 3, 7, 14, 30].filter(d => d >= g.min_days && d <= g.max_days);
     const update = async () => {
       $('#days', sheet).textContent = days;
@@ -571,7 +642,7 @@ function giftSheet(g) {
         if (mine !== seq) return;
         $('#bd', sheet).innerHTML = breakdown(q.per_day_uzs, q.days, q.service_fee_uzs || 0, q.amount_uzs);
         $('#ton', sheet).textContent = t('gift.ton_hint', { ton: q.ton_total });
-        $('#rent', sheet).textContent = `${t('gift.rent')} — ${money(q.amount_uzs)}`;
+        $('#rent', sheet).textContent = t('ui.rent_for', { price: money(q.amount_uzs) });
         $('#rent', sheet).disabled = false;
       } catch (e) {
         if (mine !== seq) return;
@@ -839,42 +910,136 @@ function extendSheet(o) {
   });
 }
 
-// ------------------------------------------------------------------ rentals
-const RENT_KIND = { active: 'ok', extended: 'ok', expired: 'info', cancelled: 'info', refunded: 'info', failed: 'err' };
-const RENT_ICON = { ok: 'checkCircle', info: 'snow', err: 'alert', wait: 'clock' };
+// ------------------------------------------------------------------ activity (all orders) — Tower "Activity" screen
+const ACT_KIND = { active: 'ok', extended: 'ok', expired: 'info', cancelled: 'info', refunded: 'info', failed: 'err' };
+const ACT_ICON = { ok: flat.check, info: flat.snow, err: flat.alert, wait: flat.clock };
+const ACT_LABEL = { ok: 'ui.completed', info: 'ui.frozen', err: 'ui.dispute', wait: 'ui.processing' };
+const LIVE = new Set(['active', 'awaiting_link', 'connecting', 'connect_signing']);
+
+function orderThumb(o) {
+  return (o.category || 'gift') === 'gift' ? giftImage(o.image, o.nft_name) : nameTile({ name: o.nft_name, category: o.category });
+}
+
+function shortDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  // Uzbek month names are missing in some WebViews' Intl data, so spell them out.
+  const uz = ['yan', 'fev', 'mar', 'apr', 'may', 'iyun', 'iyul', 'avg', 'sen', 'okt', 'noy', 'dek'];
+  const day = lang === 'uz' ? `${d.getDate()} ${uz[d.getMonth()]}` : d.toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
+  return `${day}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function splitName(name = '') {
+  const i = name.lastIndexOf(' #');
+  return i > 0 ? [name.slice(0, i), name.slice(i + 1)] : [name, ''];
+}
 
 function statusCard(o) {
-  const kind = RENT_KIND[o.status] || 'wait';
-  const thumb = (o.category || 'gift') === 'gift' ? giftImage(o.image, o.nft_name) : nameTile({ name: o.nft_name, category: o.category });
-  return `<button class="status-card" data-order="${o.id}">
-    <div class="sc-head ${kind}">${icons[RENT_ICON[kind]]}<span>${esc(t(`status.${o.status}`))}</span><span class="date">${esc(dateTime(o.created_at))}</span></div>
-    <div class="sc-body"><div class="thumb">${thumb}</div>
-      <div class="grow"><div class="title">${esc(o.nft_name)}</div>
-        <div class="sub">#${o.id}${o.kind === 'extend' ? ` · +${esc(t('ext.label'))}` : ''} · ${o.days} ${esc(t('common.days'))}</div></div>
-      <div class="price">${money(o.amount_uzs)}</div></div>
-    <div class="sc-foot">${esc(t('rentals.details'))} ${icons.chevronRight}</div></button>`;
+  const kind = ACT_KIND[o.status] || 'wait';
+  const [title, num] = splitName(o.nft_name);
+  const label = kind === 'wait' || o.status === 'active' ? t(`status.${o.status}`) : t(ACT_LABEL[kind]);
+  return `<div class="act-item">
+    <div class="act-top"><span class="act-st ${kind}">${ACT_ICON[kind]}${esc(label)}</span><span class="date">${esc(shortDate(o.created_at))}</span></div>
+    <button class="status-card ${kind}" data-order="${o.id}">
+      <div class="sc-body"><div class="thumb">${orderThumb(o)}</div>
+        <div class="grow"><div class="title">${esc(title)}</div>
+          <div class="sub">${esc(num || `#${o.id}`)}${o.kind === 'extend' ? ` · +${esc(t('ext.label'))}` : ''} · ${o.days} ${esc(t('common.days'))}</div></div>
+        <div class="price">${esc(Number(o.amount_uzs).toLocaleString('ru-RU').replace(/,/g, ' '))}<span class="sum-ico">${esc(t('common.sum'))}</span></div></div>
+      <span class="sc-go">${esc(t('ui.go_order'))}</span></button></div>`;
 }
 
 async function rentalsView(view) {
   view.innerHTML = `<div class="list">${'<div class="skeleton" style="height:130px"></div>'.repeat(3)}</div>`;
   try { state.orders = (await api.orders()).items; } catch (e) { view.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
-  if (state.tab !== 'rentals' || state.view) return;
-  if (!state.orders.length) {
-    view.innerHTML = `<div class="card hero"><div class="hero-art">${art.giftBox}</div><h2>${esc(t('rentals.empty'))}</h2>
-      <p>${esc(t('gift.how'))}</p><button class="btn mt2" id="browse">${esc(t('rentals.browse'))}</button></div>`;
-    $('#browse', view).onclick = () => switchTab('catalog');
-    return;
-  }
+  if (state.tab !== 'activity' || state.view) return;
   const open = state.orders.filter(o => !FINAL.has(o.status)), past = state.orders.filter(o => FINAL.has(o.status));
-  if (!state.rentSeg) state.rentSeg = open.length ? 'active' : 'history';
-  const items = state.rentSeg === 'active' ? open : past;
-  view.innerHTML = `<div class="seg">
-      <button data-rs="active" class="${state.rentSeg === 'active' ? 'active' : ''}">${esc(t('rentals.active'))} (${open.length})</button>
-      <button data-rs="history" class="${state.rentSeg === 'history' ? 'active' : ''}">${esc(t('rentals.history'))} (${past.length})</button></div>`
-    + (items.length ? `<div class="list">${items.map(statusCard).join('')}</div>`
-      : `<div class="empty"><div class="hero-art">${art.giftBox}</div>${esc(t('rentals.empty'))}</div>`);
-  view.querySelectorAll('[data-rs]').forEach(b => b.onclick = () => { state.rentSeg = b.dataset.rs; haptic(); rentalsView(view); });
+  if (!state.actSeg) state.actSeg = open.length || !past.length ? 'active' : 'history';
+  const items = state.actSeg === 'active' ? open : past;
+  view.innerHTML = `<div class="seg pill">
+      <button data-rs="active" class="${state.actSeg === 'active' ? 'active' : ''}">${esc(t('rentals.active'))} <em>${open.length}</em></button>
+      <button data-rs="history" class="${state.actSeg === 'history' ? 'active' : ''}">${esc(t('rentals.history'))} <em>${past.length}</em></button></div>`
+    + (items.length ? `<div class="list act-list">${items.map(statusCard).join('')}</div>`
+      : `<div class="card hero"><div class="hero-art">${art.giftBox}</div><h2>${esc(t('rentals.empty'))}</h2>
+        <p>${esc(t('gift.how'))}</p><button class="btn mt2" id="browse">${esc(t('rentals.browse'))}</button></div>`);
+  view.querySelectorAll('[data-rs]').forEach(b => b.onclick = () => { state.actSeg = b.dataset.rs; haptic(); rentalsView(view); });
   view.querySelectorAll('[data-order]').forEach(b => b.onclick = () => openOrder(b.dataset.order));
+  $('#browse', view)?.addEventListener('click', () => switchTab('catalog'));
+}
+
+// ------------------------------------------------------------------ inventory (gifts rented right now) — Tower "Inventory" grid
+function invCard(o) {
+  const [title, num] = splitName(o.nft_name);
+  const left = o.end_time ? duration((new Date(o.end_time) - Date.now()) / 1000) : t(`status.${o.status}`);
+  return `<div class="gift-card" role="button" tabindex="0" data-order="${o.id}">
+    <div class="gift-img">${orderThumb(o)}${o.status !== 'active' ? `<span class="gift-num">${esc(t(`status.${o.status}`))}</span>` : ''}</div>
+    <div class="gift-meta"><div class="gift-name">${esc(title)}</div><div class="gift-sub">${esc(num || `#${o.id}`)}</div></div>
+    <div class="gift-foot"><span class="price-btn time">${flat.clock}<span data-left-until="${esc(o.end_time || '')}">${esc(left)}</span></span>
+      <span class="icon-sq">${icons.chevronRight}</span></div></div>`;
+}
+
+async function inventoryView(view) {
+  const head = () => `<div class="toolbar"><div class="search grow-search">${icons.search}<input id="iq" placeholder="${esc(t('ui.search_inv'))}" value="${esc(state.invQ)}"></div>
+    <button class="tool icon-only" id="inv-filter" aria-label="${esc(t('catalog.sort_btn'))}">${icons.sliders}</button></div>`;
+  view.innerHTML = head() + `<div class="grid">${'<div class="skeleton" style="aspect-ratio:.72"></div>'.repeat(4)}</div>`;
+  try { state.orders = (await api.orders()).items; } catch (e) { view.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
+  if (state.tab !== 'rentals' || state.view) return;
+  const live = state.orders.filter(o => LIVE.has(o.status) && o.kind !== 'extend');
+  const draw = () => {
+    const q = state.invQ.trim().toLowerCase().replace(/^#/, '');
+    const items = live.filter(o => !q || `${o.nft_name} ${o.id}`.toLowerCase().includes(q));
+    const body = $('#inv-body', view);
+    body.innerHTML = items.length ? `<div class="grid">${items.map(invCard).join('')}</div>`
+      : `<div class="card hero"><div class="hero-art">${art.giftBox}</div><h2>${esc(t('ui.inv_empty'))}</h2>
+        <p>${esc(t('gift.how'))}</p><button class="btn mt2" id="browse">${esc(t('rentals.browse'))}</button></div>`;
+    body.querySelectorAll('[data-order]').forEach(b => b.onclick = () => openOrder(b.dataset.order));
+    $('#browse', body)?.addEventListener('click', () => switchTab('catalog'));
+  };
+  view.innerHTML = head() + `<div id="inv-body"></div>`;
+  $('#iq', view).oninput = e => { state.invQ = e.target.value; draw(); };
+  $('#inv-filter', view).onclick = () => switchTab('activity');
+  draw();
+  const tick = () => view.querySelectorAll('[data-left-until]').forEach(el => {
+    if (el.dataset.leftUntil) el.textContent = duration((new Date(el.dataset.leftUntil) - Date.now()) / 1000);
+  });
+  state.timers.push(setInterval(tick, 30000));
+}
+
+// ------------------------------------------------------------------ cart — Tower "Cart" screen
+function cartView(view) {
+  const draw = () => {
+    const sel = state.cartSel;
+    [...sel].forEach(a => { if (!inCart(a)) sel.delete(a); });
+    const all = state.cart.length && sel.size === state.cart.length;
+    if (!state.cart.length) {
+      view.innerHTML = `<div class="card hero"><div class="hero-art">${art.giftBox}</div><h2>${esc(t('ui.cart_empty'))}</h2>
+        <button class="btn mt2" id="browse">${esc(t('rentals.browse'))}</button></div>`;
+      $('#browse', view).onclick = () => switchTab('catalog');
+      return;
+    }
+    view.innerHTML = `<div class="cart-bar">
+        <button class="cart-all" id="c-all"><span class="lbl">${esc(t('ui.select_all'))}</span><em>${state.cart.length}</em><span class="tick ${all ? 'on' : ''}">${icons.check}</span></button>
+        <button class="cart-rm" id="c-rm" ${sel.size ? '' : 'disabled'}>${esc(t('ui.remove_selected'))}${flat.trash}</button></div>
+      <div class="list">${state.cart.map(g => {
+        const price = g.per_day_uzs != null ? Number(g.per_day_uzs).toLocaleString('ru-RU').replace(/,/g, ' ') : g.price_per_day_ton;
+        const other = g.category && g.category !== 'gift';
+        return `<div class="cart-row" data-open="${esc(g.address)}">
+          <div class="thumb">${other ? nameTile(g) : giftImage(g.image, g.name)}</div>
+          <div class="grow"><div class="title">${esc(g.collection || g.name)}</div><div class="sub">${esc(g.number ? `#${g.number}` : t(`cat.${g.category}_one`))}</div>
+            <div class="cprice">${esc(price)}<span class="sum-ico">${esc(g.per_day_uzs != null ? t('common.sum') : 'TON')}</span><small>${esc(t('catalog.per_day'))}</small></div></div>
+          <button class="tick ${sel.has(g.address) ? 'on' : ''}" data-sel="${esc(g.address)}" aria-label="select">${icons.check}</button></div>`;
+      }).join('')}</div>`;
+    $('#c-all', view).onclick = () => { haptic(); if (all) sel.clear(); else state.cart.forEach(g => sel.add(g.address)); draw(); };
+    $('#c-rm', view).onclick = () => {
+      haptic('medium'); state.cart = state.cart.filter(g => !sel.has(g.address)); sel.clear(); saveCart(); renderTopbar(); draw();
+    };
+    view.querySelectorAll('[data-sel]').forEach(b => b.onclick = e => {
+      e.stopPropagation(); haptic(); const a = b.dataset.sel; sel.has(a) ? sel.delete(a) : sel.add(a); draw();
+    });
+    view.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
+      const g = giftBy(state.cart, b.dataset.open); if (g) giftSheet(g);
+    });
+  };
+  draw();
 }
 
 // ------------------------------------------------------------------ guide
@@ -893,42 +1058,49 @@ function guideView(view) {
 function profileView(view) {
   const { user, app, rentals } = state.me;
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'User';
-  const sm = (icon, n = 18) => icon.replace('<svg', `<svg width="${n}" height="${n}"`);
-  const row = (id, color, icon, label, value = '') => `<button class="menu-row" data-row="${id}"><span class="menu-icon" style="background:${color}">${icon}</span>
+  const row = (id, shape, color, label, value = '') => `<button class="menu-row" data-row="${id}">${glow(shape, color, 34)}
     <span class="label">${esc(label)}</span><span class="value">${esc(value)}</span><span class="chev">${icons.chevronRight}</span></button>`;
-  const stat = (id, color, icon, value, label, key = '') => `<button class="stat-card" ${id ? `data-row="${id}"` : ''}>
-    <span class="ico" style="background:${color}26;color:${color}">${sm(icon)}</span>
-    <div><b ${key ? `id="ps-${key}"` : ''}>${esc(value)}</b><span>${esc(label)}</span></div></button>`;
+  const stat = (id, shape, color, value, label, key = '') => `<button class="stat-card" ${id ? `data-row="${id}"` : ''}>
+    ${glow(shape, color, 36)}<div><b ${key ? `id="ps-${key}"` : ''}>${esc(value)}</b><span>${esc(label)}</span></div></button>`;
   view.innerHTML = `<div class="pf-head">${avatarHtml(user)}<div><h2>${esc(name)}</h2>${user.username ? `<p>@${esc(user.username)}</p>` : ''}</div></div>
+    <div class="quick">
+      <button data-row="rentals">${glow('ticket', 'blue', 46)}<span>${esc(t('nav.inventory'))}</span></button>
+      <button data-row="market">${glow('bag', 'green', 46)}<span>${esc(t('nav.market'))}</span></button>
+      <button data-row="cart">${glow('bag', 'orange', 46)}<span>${esc(t('nav.cart'))}</span></button>
+      <button data-row="referral">${glow('users', 'blue', 46)}<span>${esc(t('profile.referral'))}</span></button>
+    </div>
     <div class="stat-grid">
-      ${stat('balance', '#2b8cff', icons.wallet, money(user.balance_uzs || 0), t('profile.balance'))}
-      ${stat('rentals', '#2ecc71', icons.key, String(rentals), t('profile.active'))}
-      ${stat('top', '#ffb020', icons.card, money(user.spent_uzs || 0), t('profile.spent'))}
-      ${stat('referral', '#8b5cf6', icons.users, '…', t('ref.invited'), 'invited')}
-      ${stat('referral', '#4aa8ff', icons.bolt, '…', t('ref.earned'), 'earned')}
-      ${stat('top', '#ffc83d', icons.trophy, '…', t('profile.rank'), 'rank')}
+      ${stat('balance', 'wallet', 'green', money(user.balance_uzs || 0), t('profile.balance'))}
+      ${stat('rentals', 'ticket', 'blue', String(rentals), t('profile.active'))}
+      ${stat('top', 'card', 'orange', money(user.spent_uzs || 0), t('profile.spent'))}
+      ${stat('referral', 'users', 'violet', '…', t('ref.invited'), 'invited')}
+      ${stat('referral', 'wallet', 'blue', '…', t('ref.earned'), 'earned')}
+      ${stat('top', 'trophy', 'orange', '…', t('profile.rank'), 'rank')}
     </div>
     <button class="ref-card" data-row="referral"><h3>${esc(t('profile.ref_cta'))}</h3>
-      <div class="info"><span class="ico">${sm(icons.users)}</span><div><b>${esc(t('profile.referral'))}</b><small>${esc(t('profile.referral_d'))}</small></div>
+      <div class="info">${glow('users', 'green', 34)}<div><b>${esc(t('profile.referral'))}</b><small>${esc(t('profile.referral_d'))}</small></div>
       <span class="chev">${icons.chevronRight}</span></div></button>
     <div class="menu">
-      ${row('rentals', 'var(--green-1)', icons.key, t('nav.rentals'), String(rentals))}
-      ${row('top', '#e0a400', icons.trophy, t('profile.top'))}
-      ${row('guide', 'var(--blue)', icons.book, t('profile.guide'))}
-      ${row('premium', '#8b5cf6', icons.star, t('profile.premium'))}
-      ${row('lang', '#3d4a5e', icons.globe, t('profile.lang'), t('lang.name'))}
-      ${app.support ? row('support', '#2b8cff', icons.chat, t('profile.chat')) : ''}
-      ${app.channel ? row('channel', '#e0a400', icons.bell, t('profile.channel'), '@' + app.channel) : ''}
-      ${app.offer_url ? row('offer', '#3f9d6b', icons.doc, t('profile.offer')) : ''}
+      ${row('activity', 'ticket', 'green', t('nav.activity'), String(rentals))}
+      ${row('top', 'trophy', 'orange', t('profile.top'))}
+      ${row('guide', 'book', 'blue', t('profile.guide'))}
+      ${row('premium', 'star', 'violet', t('profile.premium'))}
+      ${row('lang', 'globe', 'blue', t('profile.lang'), t('lang.name'))}
+      ${app.support ? row('support', 'chat', 'blue', t('profile.chat')) : ''}
+      ${app.channel ? row('channel', 'bell', 'orange', t('profile.channel'), '@' + app.channel) : ''}
+      ${app.offer_url ? row('offer', 'doc', 'orange', t('profile.offer')) : ''}
+      ${user.is_admin ? row('admin', 'key', 'red', t('nav.admin')) : ''}
     </div>
-    <button class="btn" data-row="topup">${sm(icons.plus)} ${esc(t('profile.topup'))}</button>
+    <button class="btn" data-row="topup">${icons.plus.replace('<svg', '<svg width="18" height="18"')} ${esc(t('profile.topup'))}</button>
     <p class="center muted" style="font-size:12px;line-height:1.5;padding:0 10px;margin-top:16px">${esc(t('profile.safe_note'))}</p>
     <p class="center muted" style="font-size:12px">${esc(app.name)}</p>`;
   const actions = {
     lang: langSheet, support: () => openTg(app.support), channel: () => openTg(app.channel),
-    rentals: () => switchTab('rentals'), offer: () => openLink(app.offer_url), balance: () => openView('balance'),
+    rentals: () => switchTab('rentals'), activity: () => switchTab('activity'), market: () => switchTab('catalog'),
+    cart: () => openView('cart'), offer: () => openLink(app.offer_url), balance: () => openView('balance'),
     topup: () => openView('balance'), referral: () => openView('referral'), top: () => openView('top'),
-    guide: () => openView('guide'), premium: () => { state.starsSeg = 'premium'; switchTab('stars'); },
+    guide: () => openView('guide'), premium: () => { state.starsSeg = 'premium'; state.category = 'stars'; switchTab('catalog'); },
+    admin: () => (app.admin_panel_url ? openLink(app.admin_panel_url) : switchTab('admin')),
   };
   view.querySelectorAll('[data-row]').forEach(b => b.onclick = () => actions[b.dataset.row]?.());
   // referral and rating numbers come from their own (read-only) endpoints
@@ -984,7 +1156,7 @@ function syncSafeArea() {
 async function boot() {
   if (tg) {
     tg.ready(); tg.expand();
-    try { tg.setHeaderColor('#0B0F16'); tg.setBackgroundColor('#0B0F16'); tg.setBottomBarColor?.('#0B0F16'); } catch { /* old client */ }
+    try { tg.setHeaderColor('#0F1115'); tg.setBackgroundColor('#0F1115'); tg.setBottomBarColor?.('#0F1115'); } catch { /* old client */ }
     syncSafeArea();
     try { tg.onEvent('safeAreaChanged', syncSafeArea); tg.onEvent('contentSafeAreaChanged', syncSafeArea); } catch { /* old client */ }
     try { tg.disableVerticalSwipes?.(); } catch { /* old client */ }
@@ -1009,8 +1181,10 @@ async function boot() {
   if (orderId && state.tab !== 'admin') state.view = { name: 'order', id: Number(orderId) };
   if (orderId && params.get('extend')) state.autoExtend = Number(orderId);
   if (state.tab === 'admin' && orderId) state.adminFocus = Number(orderId);
+  if (state.tab === 'rentals' && params.get('tab') === 'rentals' && !orderId) state.tab = 'activity';
   await render();
   hideSplash();
+  if (startParam.startsWith('g_')) api.gift(startParam.slice(2)).then(giftSheet).catch(e => toast(errText(e), true));
 }
 
 // Never leave the user stuck on the splash: hide it even if boot fails or hangs.

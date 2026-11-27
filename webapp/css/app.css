@@ -601,3 +601,195 @@ details.alt-way > .card { background: transparent; border: 0; padding: 0 0 16px;
 
 @media (max-width: 370px) { .stars-pill .lbl { display: none; } .cat-tabs { gap: 14px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* =====================================================================================
+   TOWER 1:1 LAYER — matches the reference mockups (Market / Inventory / Activity / Cart / Gift).
+   Palette: near-black graphite page, low-contrast graphite cards, one Telegram-blue accent.
+   ===================================================================================== */
+:root {
+  --bg: #0f1115;
+  --card: #1b1e24;
+  --card-2: #23272e;
+  --card-3: #2a2f37;
+  --line: rgba(255, 255, 255, .05);
+  --line-2: rgba(255, 255, 255, .09);
+  --accent: #1f8cf5;
+  --accent-press: #1677e0;
+  --accent-soft: rgba(31, 140, 245, .15);
+  --accent-grad: linear-gradient(100deg, #36a0ff 0%, #1f8cf5 55%, #1672dc 100%);
+  --text-2: #8e96a4;
+  --muted: #5d6470;
+  --success: #2fd27a;
+  --info: #3d9bff;
+  --error: #ff4a50;
+  --radius: 18px;
+  --radius-sm: 13px;
+  --nav-h: 66px;
+}
+body { background: var(--bg); }
+
+/* ---- Header: avatar · "Stars ★" pill … basket · [+ | 250 890 so'm] ---- */
+.topbar { padding: calc(8px + var(--tg-top)) var(--pad) 8px; background: rgba(15, 17, 21, .92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.avatar { width: 30px; height: 30px; }
+.stars-pill { height: 30px; padding: 0 10px 0 12px; gap: 4px; background: var(--card); border: 0; font-size: 13.5px; }
+.stars-pill svg { width: 14px; height: 14px; }
+.round-btn { position: relative; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--card); color: #c9d2e0; flex: none; }
+.round-btn svg { width: 17px; height: 17px; }
+.round-btn i { position: absolute; top: -4px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--error);
+  font: 700 10px/16px var(--font); color: #fff; text-align: center; font-style: normal; box-shadow: 0 0 0 2px var(--bg); }
+.round-btn i[hidden] { display: none; }
+.bal-pill { display: inline-flex; align-items: center; height: 30px; padding: 3px; border-radius: 999px; background: var(--accent); gap: 2px; }
+.bal-plus { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .22); flex: none; }
+.bal-plus svg { width: 13px; height: 13px; stroke-width: 3; }
+.bal-sum { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 6px; font-weight: 700; font-size: 13.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sum-ico { display: inline-grid; place-items: center; height: 15px; padding: 0 4px; border-radius: 5px; background: rgba(255, 255, 255, .22);
+  font-size: 9.5px; font-weight: 800; letter-spacing: .02em; line-height: 1; text-transform: lowercase; }
+
+/* ---- Page title (large, left) with grey subtitle ---- */
+.page-title { margin: 8px var(--pad) 14px; font-size: 27px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
+.page-title small { display: block; margin-top: 4px; font-size: 13px; font-weight: 500; color: var(--text-2); letter-spacing: 0; }
+
+/* ---- Banner & category tabs ---- */
+.banner { border-radius: 18px; box-shadow: 0 10px 30px -12px rgba(31, 140, 245, .6); }
+.cat-tabs { gap: 18px; overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * var(--pad)) 14px; padding: 0 var(--pad); }
+.cat-tabs::-webkit-scrollbar { display: none; }
+.cat-tabs button { font-size: 14.5px; }
+
+/* ---- Search + filter pills (Inventory mockup) ---- */
+.search { height: 42px; border-radius: 13px; background: var(--card); border: 0; }
+.tool { height: 42px; border-radius: 13px; background: var(--card); border: 0; }
+.tool.icon-only { flex: 0 0 42px; }
+.fpill { height: 32px; background: var(--card); border: 0; color: #c7cfdb; font-weight: 600; }
+.fpill svg { color: var(--muted); }
+
+/* ---- Segmented "Active 999 | History 4" ---- */
+.seg { background: transparent; border: 0; padding: 0; gap: 8px; }
+.seg button { height: 40px; border-radius: 999px; background: var(--card); color: #c7cfdb; font-weight: 700; }
+.seg button.active { background: var(--accent); color: #fff; box-shadow: 0 8px 22px -10px rgba(31, 140, 245, .8); }
+.seg button em { font-style: normal; opacity: .65; margin-left: 4px; font-weight: 600; }
+
+/* ---- GiftCard ---- */
+.grid { gap: 10px; }
+.gift-card { background: var(--card); border: 0; border-radius: 20px; padding: 6px 6px 8px; gap: 9px; }
+.gift-img { border-radius: 15px; background: var(--card-3); }
+.gift-meta { padding: 0 6px; }
+.gift-name { font-size: 15.5px; font-weight: 700; }
+.gift-sub { color: var(--text-2); font-size: 12.5px; font-weight: 500; margin-top: 1px; }
+.gift-foot { padding: 0 2px; gap: 6px; }
+.price-btn { height: 36px; border-radius: 12px; gap: 5px; font-size: 14px; font-weight: 800; box-shadow: 0 6px 16px -8px rgba(31, 140, 245, .9); }
+.price-btn small { font-weight: 600; opacity: .75; margin-left: -2px; }
+.price-btn.time { background: var(--card-2); box-shadow: none; color: #dbe3ee; font-weight: 700; font-size: 12.5px; }
+.price-btn.time svg { width: 15px; height: 15px; color: var(--accent); flex: none; }
+.price-btn.time span { overflow: hidden; text-overflow: ellipsis; }
+.icon-sq { width: 36px; height: 36px; border-radius: 12px; background: var(--card-2); border: 0; color: #9aa6b8; }
+.icon-sq svg { width: 18px; height: 18px; color: inherit; }
+.icon-sq.on { background: var(--accent-soft); color: var(--accent); }
+.gift-num { top: 8px; left: 8px; padding: 3px 8px; background: rgba(0, 0, 0, .45); backdrop-filter: blur(6px); }
+
+/* ---- Activity: status line + date above a card with "Go to the order" ---- */
+.act-list { gap: 16px; }
+.act-top { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 8px; }
+.act-st { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 15px; }
+.act-st svg { width: 19px; height: 19px; }
+.act-st.ok { color: #fff; } .act-st.ok svg { color: var(--success); }
+.act-st.info { color: #fff; } .act-st.info svg { color: var(--info); }
+.act-st.err { color: #fff; } .act-st.err svg { color: var(--error); }
+.act-st.wait { color: #fff; } .act-st.wait svg { color: var(--warn); }
+.act-top .date { font-size: 12.5px; color: var(--text-2); font-weight: 500; }
+.status-card { background: var(--card); border: 1px solid transparent; border-radius: 20px; padding: 12px; }
+.status-card.err { border-color: rgba(255, 74, 80, .35); background: linear-gradient(180deg, rgba(255, 74, 80, .10), var(--card) 70%);
+  box-shadow: 0 0 34px -14px rgba(255, 74, 80, .55); }
+.sc-body { margin-top: 0; }
+.sc-body .thumb { width: 46px; height: 46px; border-radius: 12px; }
+.sc-body .title { font-weight: 700; }
+.sc-body .sub { color: var(--text-2); }
+.sc-body .price { display: inline-flex; align-items: center; gap: 5px; font-weight: 800; font-size: 15px; }
+.sc-body .price .sum-ico { background: var(--accent); color: #fff; }
+.sc-go { display: flex; align-items: center; justify-content: center; height: 40px; margin-top: 12px; border-radius: 12px; background: var(--card-2);
+  font-size: 13.5px; font-weight: 600; color: #c7cfdb; }
+
+/* ---- Cart ---- */
+.cart-bar { display: flex; gap: 8px; margin-bottom: 14px; }
+.cart-all, .cart-rm { display: inline-flex; align-items: center; gap: 8px; height: 40px; border-radius: 999px; padding: 0 6px 0 14px; font-weight: 700; font-size: 13.5px; }
+.cart-all { flex: 1; background: var(--card); justify-content: space-between; }
+.cart-all em { font-style: normal; color: var(--text-2); font-weight: 600; margin-right: auto; }
+.cart-rm { background: rgba(255, 74, 80, .14); color: var(--error); padding: 0 12px 0 14px; }
+.cart-rm svg { width: 17px; height: 17px; }
+.cart-rm[disabled] { opacity: .45; }
+.cart-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 10px; border-radius: 18px; background: var(--card); cursor: pointer; }
+.cart-row .thumb { width: 60px; height: 60px; border-radius: 13px; overflow: hidden; flex: none; background: var(--card-3); }
+.cart-row .grow { flex: 1; min-width: 0; }
+.cart-row .title { font-weight: 700; font-size: 15.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cart-row .sub { font-size: 12.5px; color: var(--text-2); margin-top: 1px; }
+.cprice { display: inline-flex; align-items: center; gap: 5px; margin-top: 5px; font-weight: 800; font-size: 14.5px; }
+.cprice .sum-ico { background: var(--accent); }
+.cprice small { color: var(--text-2); font-weight: 600; font-size: 11.5px; }
+.tick { width: 26px; height: 26px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--card-3); color: transparent; }
+.tick svg { width: 15px; height: 15px; }
+.tick.on { background: var(--accent); color: #fff; box-shadow: 0 4px 14px -4px rgba(31, 140, 245, .9); }
+.cart-all .tick { border-radius: 8px; }
+
+/* ---- Gift detail sheet (image card · attribute table · View/Share/Cart · Buy button) ---- */
+.sheet { background: #13161b; border-top: 0; border-radius: 26px 26px 0 0; }
+.sheet::before { content: ""; position: absolute; top: 8px; left: 50%; width: 38px; height: 4px; margin-left: -19px; border-radius: 4px; background: rgba(255, 255, 255, .16); }
+.gd-card { background: var(--card); border-radius: 22px; padding: 10px; margin: 18px 0 12px; }
+.gift-sheet .gift-hero { width: 100%; max-width: 330px; margin: 0 auto; border-radius: 18px; }
+.gift-sheet .gift-hero::after { content: ""; position: absolute; inset: 55% 0 0; background: linear-gradient(transparent, rgba(0, 0, 0, .55)); pointer-events: none; }
+.gift-sheet .gd-title { position: absolute; left: 0; right: 0; bottom: 12px; z-index: 1; margin: 0; text-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
+.gift-sheet .gd-title h3 { font-size: 21px; font-weight: 800; }
+.gift-sheet .gd-title span { color: rgba(255, 255, 255, .8); margin-top: 1px; }
+.gd-card .attr-table { background: transparent; border: 0; padding: 4px 6px 2px; margin: 6px 0 0; }
+.gd-card .attr-row { padding: 10px 0; }
+.gd-card .attr-row span { color: var(--text-2); }
+.gd-card .attr-row b { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.pct { font-style: normal; padding: 3px 8px; border-radius: 8px; background: var(--accent-soft); color: #6db6ff; font-size: 12px; font-weight: 700; }
+.gd-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.gd-actions button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 4px 10px; border-radius: 14px; background: var(--card-2);
+  font-size: 12.5px; font-weight: 600; color: #c7cfdb; }
+.gd-actions button svg { width: 21px; height: 21px; color: #9fb3cf; }
+.gd-actions button.on { background: var(--accent-soft); color: #fff; }
+.gd-actions button.on svg { color: var(--accent); }
+.gift-sheet .sticky-cta .btn { height: 54px; border-radius: 16px; font-size: 16px; box-shadow: 0 12px 30px -12px rgba(31, 140, 245, .9); }
+.stepper { background: var(--card-2); border: 0; }
+.stepper button { background: var(--card-3); }
+
+/* ---- Buttons / cards ---- */
+.card { border: 0; border-radius: 20px; }
+.btn { border-radius: 15px; box-shadow: 0 10px 26px -14px rgba(31, 140, 245, .9); }
+.btn.secondary, .btn.ghost, .btn.danger { box-shadow: none; }
+.btn.secondary { background: var(--card-2); border: 0; }
+.row-card, .menu, .stat-card, .ref-card, details.alt-way, .radio-row, .chip, .copy-line { border: 0; }
+.chip { background: var(--card); }
+.chip.active { background: var(--accent); }
+
+/* ---- Glow icons (second logo sheet) ---- */
+.glow-ico { position: relative; display: inline-grid; place-items: center; flex: none; }
+.glow-ico::before { content: ""; position: absolute; inset: 8%; border-radius: 30%; background: var(--halo); filter: blur(10px); opacity: .9; }
+.glow-ico svg { position: relative; width: 100%; height: 100%; filter: drop-shadow(0 1px 0 rgba(255, 255, 255, .25)); }
+
+/* ---- Profile ---- */
+.pf-head .avatar { width: 64px; height: 64px; border-radius: 50%; }
+.quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.quick button { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 4px 12px; border-radius: 18px; background: var(--card);
+  font-size: 11.5px; font-weight: 700; color: #c7cfdb; min-width: 0; }
+.quick button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat-card { padding: 12px; border-radius: 18px; }
+.menu { border-radius: 20px; }
+.menu-row { padding: 11px 14px; }
+.ref-card .info .glow-ico { margin-right: 2px; }
+
+/* ---- Bottom navigation: MARKET · INVENTORY · ACTIVITY · PROFILE ---- */
+.tabbar { padding: 8px 6px calc(8px + var(--safe-bottom)); background: rgba(22, 25, 30, .94); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255, 255, 255, .06); }
+.tab { gap: 5px; font-size: 9.5px; font-weight: 800; letter-spacing: .06em; color: #5f6875; }
+.tab svg { width: 22px; height: 22px; }
+.tab.active { color: var(--accent); }
+.tab.active svg { filter: drop-shadow(0 0 8px rgba(31, 140, 245, .55)); }
+
+.toast { background: #262b33; border: 0; }
+.overlay { background: rgba(4, 6, 9, .7); backdrop-filter: blur(3px); }
+@media (max-width: 370px) { .bal-sum { font-size: 12.5px; } .quick button { font-size: 10.5px; } }
+.cart-all { white-space: nowrap; min-width: 0; }
+.cart-all .lbl { overflow: hidden; text-overflow: ellipsis; }
+.cart-rm { white-space: nowrap; flex: none; }
+@media (max-width: 400px) { .cart-all, .cart-rm { font-size: 12.5px; } }

@@ -56,13 +56,14 @@ async def _transition(order_id: int, allowed: set | frozenset, to: str, actor: s
             raise ServiceError("order_not_found", 404)
         if current.status not in allowed:
             raise ServiceError("bad_state", 409, current.status)
+        previous = current.status   # the ORM update below syncs `current`, so remember the old status first
         result = await session.execute(
-            update(Order).where(Order.id == order_id, Order.status == current.status)
+            update(Order).where(Order.id == order_id, Order.status == previous)
             .values(status=to, updated_at=utcnow(), **values))
         if result.rowcount != 1:
             await session.rollback()
             raise ServiceError("bad_state", 409, "concurrent")
-        session.add(OrderEvent(order_id=order_id, from_status=current.status, to_status=to, actor=actor, note=note[:500]))
+        session.add(OrderEvent(order_id=order_id, from_status=previous, to_status=to, actor=actor, note=note[:500]))
         await session.commit()
         return await session.get(Order, order_id, populate_existing=True)
 

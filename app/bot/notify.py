@@ -12,7 +12,7 @@ from ..config import get_settings
 from ..db import Order, Session, User, aware, utcnow
 from ..i18n import t
 from ..ton import ton_text
-from .common import fmt_dt, fmt_left, fmt_sum, markup, user_lang, webapp_button
+from .common import admin_button, fmt_dt, fmt_left, fmt_sum, markup, user_lang, webapp_button
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def admin_buttons(order: Order, preset: str | None, lang: str) -> InlineKeyboard
         if hot:
             sign = cb("btn_rent" if preset == "paid" else "btn_sign", "sign")
         else:
-            sign = webapp_button(t(lang, "admin.btn_rent" if preset == "paid" else "admin.btn_sign"), admin=1, order=order.id)
+            sign = admin_button(t(lang, "admin.btn_rent" if preset == "paid" else "admin.btn_sign"), order=order.id)
         return markup([sign], [cb("btn_cancel", "cancel")] if preset == "paid" else [])
     if preset == "late":
         return markup([cb("btn_late_confirm", "latepay")], [cb("btn_refunded", "refund")])
@@ -80,7 +80,7 @@ class BotNotifier:
             lang = await user_lang(admin_id)
             cb = lambda k, a: InlineKeyboardButton(text=t(lang, f"admin.{k}"), callback_data=f"p:{a}:{purchase.id}")
             if key == "purchase_sign":
-                keyboard = markup([webapp_button(t(lang, "admin.btn_sign"), admin=1)], [cb("btn_refunded", "refund")])
+                keyboard = markup([admin_button(t(lang, "admin.btn_sign"))], [cb("btn_refunded", "refund")])
             else:
                 keyboard = markup([cb("btn_retry", "retry"), cb("btn_refunded", "refund")], [cb("btn_mark_done", "done")])
             await self._send(admin_id, t(lang, f"admin.{key}", id=purchase.id, what=what, to=purchase.recipient,

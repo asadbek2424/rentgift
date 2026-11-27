@@ -29,7 +29,11 @@
     "balance": "Balans",
     "referral": "Referal",
     "top": "Top reyting",
-    "topup": "Balans to'ldirish"
+    "topup": "Balans to'ldirish",
+    "market": "Market",
+    "inventory": "Inventar",
+    "activity": "Faollik",
+    "cart": "Savat"
   },
   "banner": {
     "title": "To'lov so'mda — karta orqali",
@@ -491,7 +495,8 @@
     "username": "@ Username",
     "number": "📞 Raqam",
     "username_one": "Username",
-    "number_one": "Anonim raqam"
+    "number_one": "Anonim raqam",
+    "stars": "⭐ Stars"
   },
   "wallet": {
     "title": "Balans",
@@ -606,5 +611,31 @@
   "uname": {
     "title": "Username'ni ulang",
     "text": "Username Fragment orqali Telegram'ingizga ulanadi: quyidagi qadamlarni bajaring."
+  },
+  "ui": {
+    "inv_sub": "Ijaradagi giftlaringiz — muddat tugashini kuzating",
+    "act_sub": "Barcha buyurtmalar va ularning holati",
+    "cart_sub": "Savatingiz — faqat ijaraga olish qoldi",
+    "select_all": "Hammasini tanlash",
+    "remove_selected": "Tanlanganni o'chirish",
+    "cart_empty": "Savat bo'sh",
+    "cart_added": "Savatga qo'shildi",
+    "cart_removed": "Savatdan olib tashlandi",
+    "go_order": "Buyurtmaga o'tish",
+    "view": "Ko'rish",
+    "share": "Ulashish",
+    "to_cart": "Savatga",
+    "in_cart": "Savatda",
+    "rent_for": "Ijaraga olish — {price}",
+    "left": "{time} qoldi",
+    "inv_empty": "Hozir ijarada gift yo'q",
+    "search_inv": "Giftlarni qidirish",
+    "price_day": "Kunlik narx",
+    "completed": "Bajarildi",
+    "processing": "Jarayonda",
+    "frozen": "Yopilgan",
+    "dispute": "Muammo",
+    "rent_open": "Ochish",
+    "share_text": "Bu giftni ijaraga oling"
   }
 }

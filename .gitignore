@@ -10,3 +10,5 @@ __pycache__/
 .pytest_cache/
 .venv/
 login_qr.svg
+admin-panel/node_modules/
+admin-panel/dist/

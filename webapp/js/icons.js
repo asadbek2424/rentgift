@@ -73,3 +73,63 @@ export function placeholder(name = '') {
   const hue = h % 360;
   return `<div class="ph" style="background:linear-gradient(140deg,hsl(${hue} 60% 46%),hsl(${(hue + 50) % 360} 65% 30%))">${icons.gift}</div>`;
 }
+
+// ---------------------------------------------------------------- Tower icon set
+// Filled bottom-nav icons (MARKET / INVENTORY / ACTIVITY / PROFILE) and status icons.
+const f = (body, vb = '0 0 24 24') => `<svg viewBox="${vb}" fill="currentColor" aria-hidden="true">${body}</svg>`;
+export const nav = {
+  market: f('<path d="M12 2.6 2.8 7.3a1 1 0 0 0 .46 1.9h17.5a1 1 0 0 0 .46-1.9L12 2.6Z"/><rect x="4.4" y="10.6" width="2.8" height="7.2" rx="1"/><rect x="10.6" y="10.6" width="2.8" height="7.2" rx="1"/><rect x="16.8" y="10.6" width="2.8" height="7.2" rx="1"/><rect x="2.6" y="19.2" width="18.8" height="2.4" rx="1.2"/>'),
+  inventory: f('<rect x="3" y="3" width="8" height="8" rx="2.4"/><rect x="13" y="3" width="8" height="8" rx="2.4"/><rect x="3" y="13" width="8" height="8" rx="2.4"/><rect x="13" y="13" width="8" height="8" rx="2.4"/>'),
+  activity: f('<path d="M12 3c5 0 9 3.6 9 8s-4 8-9 8c-1 0-2-.1-2.9-.4L5 20.5c-.6.3-1.3-.3-1.1-.9l.9-3A7.6 7.6 0 0 1 3 11c0-4.4 4-8 9-8Z"/><circle cx="8" cy="11" r="1.4" fill="#0b0f16"/><circle cx="12" cy="11" r="1.4" fill="#0b0f16"/><circle cx="16" cy="11" r="1.4" fill="#0b0f16"/>'),
+  profile: f('<circle cx="12" cy="7.6" r="4.6"/><path d="M3.6 20.2c0-4.2 3.8-7 8.4-7s8.4 2.8 8.4 7c0 .7-.5 1.2-1.2 1.2H4.8c-.7 0-1.2-.5-1.2-1.2Z"/>'),
+};
+
+// Flat glyphs from the first logo sheet: alert (red outline), basket, 2×2 grid, minus (blue tile), users.
+export const flat = {
+  alert: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="5.5"/><path d="M12 7.6v5.2M12 16.4v.1"/></svg>`,
+  basket: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8.4 3.4-3 5M15.6 3.4l3 5M3 8.6h18"/><path d="m4.6 8.8 1.6 8.6a3 3 0 0 0 3 2.4h5.6a3 3 0 0 0 3-2.4l1.6-8.6"/><path d="M10 12.2v3.6M14 12.2v3.6"/></svg>`,
+  grid: nav.inventory,
+  minus: `<svg viewBox="0 0 24 24"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="currentColor"/><path d="M8 12h8" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>`,
+  users: f('<circle cx="9.4" cy="7.6" r="4.2"/><path d="M2 19.4c0-3.8 3.3-6.2 7.4-6.2s7.4 2.4 7.4 6.2c0 .6-.5 1.1-1.1 1.1H3.1c-.6 0-1.1-.5-1.1-1.1Z"/><path d="M16.2 3.9a3.7 3.7 0 0 1 0 7.4 5.8 5.8 0 0 0 0-7.4ZM17.6 13.4c2.6.4 4.4 2.4 4.4 5.2 0 .6-.5 1.1-1.1 1.1h-2.6c.1-.4.1-.8.1-1.2 0-2-.3-3.6-.8-5.1Z"/>'),
+  check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.2 12.3 2.6 2.6 5-5.2"/></svg>`,
+  snow: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2.8v18.4M4 7.4l16 9.2M4 16.6l16-9.2"/><path d="m9.4 4.4 2.6 2 2.6-2M9.4 19.6l2.6-2 2.6 2M3.6 10.2l3.4.6-1.2 3.2M20.4 13.8l-3.4-.6 1.2-3.2M5.8 10l1.2 3.2-3.4.6M18.2 14l-1.2-3.2 3.4-.6"/></svg>`,
+  clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16M9.5 6.5V4.8c0-.7.6-1.3 1.3-1.3h2.4c.7 0 1.3.6 1.3 1.3v1.7"/><path d="m6 6.5.9 12.3a2 2 0 0 0 2 1.7h6.2a2 2 0 0 0 2-1.7L18 6.5"/></svg>`,
+  eye: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  share: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="m8.2 10.8 7.6-4M8.2 13.2l7.6 4"/></svg>`,
+  more: f('<circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/>'),
+  sum: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M8.4 9.4c0-1.6 1.6-2.6 3.6-2.6s3.4.8 3.6 2.2M15.6 14.6c0 1.6-1.6 2.6-3.6 2.6s-3.6-1-3.6-2.6M8.4 9.4c0 3.6 7.2 1.6 7.2 5.2" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+};
+
+// Glossy "glow" tiles from the second logo sheet: ticket (blue), bag (green / orange), users (blue), wallet (green), card (orange).
+const GLOW = {
+  blue: ['#46b2ff', '#1677ee', 'rgba(30,140,255,.55)'],
+  green: ['#35f0a0', '#12c473', 'rgba(20,210,120,.5)'],
+  orange: ['#ffc23a', '#f29200', 'rgba(255,160,20,.5)'],
+  violet: ['#b58cff', '#7a4cf0', 'rgba(140,90,255,.5)'],
+  red: ['#ff7a7f', '#ee3b45', 'rgba(255,70,80,.5)'],
+};
+const glowShapes = {
+  ticket: (a) => `<path d="M3 7.2A2.2 2.2 0 0 1 5.2 5h13.6A2.2 2.2 0 0 1 21 7.2v2.1a2.7 2.7 0 0 0 0 5.4v2.1a2.2 2.2 0 0 1-2.2 2.2H5.2A2.2 2.2 0 0 1 3 16.8v-2.1a2.7 2.7 0 0 0 0-5.4Z" fill="url(#${a})"/><path d="M10.4 9.2v5.6M13.6 9.2v5.6" stroke="#eaf4ff" stroke-width="1.6" stroke-linecap="round"/>`,
+  bag: (a) => `<path d="M9 7V5.6C9 4.7 9.7 4 10.6 4h2.8c.9 0 1.6.7 1.6 1.6V7" fill="none" stroke="url(#${a})" stroke-width="1.8"/><rect x="3" y="7" width="18" height="13" rx="3.4" fill="url(#${a})"/><circle cx="12" cy="13.4" r="2.9" fill="none" stroke="#102016" stroke-opacity=".85" stroke-width="1.7"/>`,
+  users: (a) => `<circle cx="9.6" cy="8" r="3.8" fill="url(#${a})"/><path d="M3 19c0-3.4 3-5.6 6.6-5.6s6.6 2.2 6.6 5.6c0 .6-.4 1-1 1H4c-.6 0-1-.4-1-1Z" fill="url(#${a})"/><circle cx="17.2" cy="11" r="2.6" fill="url(#${a})"/><path d="M14.8 20c.2-.3.3-.6.3-1 0-1.4-.4-2.6-1.2-3.6a4.6 4.6 0 0 1 3.3-1.4c2.4 0 4 1.6 4 3.8 0 1.2-.6 2.2-1.6 2.2Z" fill="url(#${a})"/>`,
+  wallet: (a) => `<path d="M14.6 6.2 16 4.4c.4-.5 1.2-.6 1.7-.2l1.3 1.2" fill="none" stroke="url(#${a})" stroke-width="1.6" stroke-linecap="round"/><rect x="3" y="6" width="18" height="14" rx="3.4" fill="url(#${a})"/><path d="M6 9h10" stroke="#0e2a1c" stroke-opacity=".55" stroke-width="1.4" stroke-linecap="round"/><circle cx="17.4" cy="14.2" r="1.3" fill="#0e2a1c" fill-opacity=".8"/>`,
+  card: (a) => `<rect x="2.6" y="5" width="18.8" height="14" rx="3" fill="url(#${a})"/><rect x="4.8" y="8.2" width="14.4" height="2.4" rx=".8" fill="#3a2100" fill-opacity=".8"/><rect x="5.4" y="13.8" width="4.6" height="2" rx="1" fill="#3a2100" fill-opacity=".8"/>`,
+  star: (a) => `<path d="M12 3.2 14.6 8.6l5.9.8-4.3 4.1 1 5.9L12 16.6l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8Z" fill="url(#${a})"/>`,
+  key: (a) => `<circle cx="8" cy="15.2" r="4.6" fill="url(#${a})"/><circle cx="8" cy="15.2" r="1.6" fill="#071a33" fill-opacity=".7"/><path d="m11.2 12 8-8M16.4 6.8l2.4 2.4M14 9.2l1.8 1.8" stroke="url(#${a})" stroke-width="2.2" stroke-linecap="round"/>`,
+  trophy: (a) => `<path d="M7.6 4h8.8v5.4a4.4 4.4 0 0 1-8.8 0V4Z" fill="url(#${a})"/><path d="M7.6 6H4.8a3 3 0 0 0 3.2 4.2M16.4 6h2.8a3 3 0 0 1-3.2 4.2" fill="none" stroke="url(#${a})" stroke-width="1.6"/><rect x="10.6" y="13" width="2.8" height="4" fill="url(#${a})"/><rect x="7.4" y="17" width="9.2" height="3" rx="1.2" fill="url(#${a})"/>`,
+  book: (a) => `<path d="M4 5.6A2.6 2.6 0 0 1 6.6 3H20v14.4H6.6A2.6 2.6 0 0 0 4 20Z" fill="url(#${a})"/><path d="M4 20a2.6 2.6 0 0 0 2.6 1.6H20v-4.2" fill="none" stroke="url(#${a})" stroke-width="1.6"/><path d="M8.6 7.4h7.4M8.6 10.6h5" stroke="#071a33" stroke-opacity=".6" stroke-width="1.6" stroke-linecap="round"/>`,
+  globe: (a) => `<circle cx="12" cy="12" r="9" fill="url(#${a})"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9M12 3C9.4 5.6 8.2 8.6 8.2 12s1.2 6.4 3.8 9" fill="none" stroke="#071a33" stroke-opacity=".5" stroke-width="1.4"/>`,
+  chat: (a) => `<path d="M12 3.4c5 0 9 3.5 9 7.9s-4 7.9-9 7.9c-1 0-1.9-.1-2.8-.4L5 20.4c-.6.3-1.2-.3-1-.9l.8-2.8A7.4 7.4 0 0 1 3 11.3c0-4.4 4-7.9 9-7.9Z" fill="url(#${a})"/>`,
+  bell: (a) => `<path d="M6 9.4a6 6 0 1 1 12 0c0 4.8 2 6.4 2 6.4H4s2-1.6 2-6.4Z" fill="url(#${a})"/><path d="M10 19.2a2 2 0 0 0 4 0" fill="none" stroke="url(#${a})" stroke-width="1.8" stroke-linecap="round"/>`,
+  doc: (a) => `<path d="M6.6 3h7.2L19 8.2v11.2a1.6 1.6 0 0 1-1.6 1.6H6.6A1.6 1.6 0 0 1 5 19.4V4.6A1.6 1.6 0 0 1 6.6 3Z" fill="url(#${a})"/><path d="M9 13h6.4M9 16.6h6.4" stroke="#3a2100" stroke-opacity=".6" stroke-width="1.6" stroke-linecap="round"/>`,
+};
+let glowSeq = 0;
+/** Glossy tile icon with a soft colored halo, e.g. glow('wallet', 'green'). */
+export function glow(shape, color = 'blue', size = 40) {
+  const [c1, c2, halo] = GLOW[color] || GLOW.blue;
+  const id = `gw${++glowSeq}`;
+  return `<span class="glow-ico" style="--halo:${halo};width:${size}px;height:${size}px"><svg viewBox="0 0 24 24" aria-hidden="true">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
+    ${(glowShapes[shape] || glowShapes.ticket)(id)}</svg></span>`;
+}

@@ -463,3 +463,32 @@ async def _tg_connect_failures():
 
 def test_tg_connect_failures():
     asyncio.run(_tg_connect_failures())
+
+
+def test_admin_panel_tokens_codes_and_password():
+    from app import admin_auth
+    from app.config import Settings
+    s = Settings(bot_token="123:ABC", admin_ids=[7], admin_panel_password="long-enough-pw", _env_file=None)
+    token, exp = admin_auth.make_token(s, 7, now=1000)
+    assert admin_auth.check_token(s, token, now=1001) == 7
+    assert admin_auth.check_token(s, token, now=exp + 1) is None            # expired
+    assert admin_auth.check_token(s, token[:-2] + "xx", now=1001) is None   # tampered signature
+    other, _ = admin_auth.make_token(s, 8, now=1000)
+    assert admin_auth.check_token(s, other, now=1001) is None               # not an admin
+    code = admin_auth.new_code(7, now=2000)
+    assert admin_auth.new_code(7, now=2010) is None                          # cooldown
+    assert not admin_auth.verify_code(7, "000000" if code != "000000" else "111111", now=2001)
+    assert admin_auth.verify_code(7, code, now=2002)
+    assert not admin_auth.verify_code(7, code, now=2003)                     # single use
+    assert admin_auth.check_password(s, "long-enough-pw", 7)
+    for _ in range(admin_auth.PASSWORD_ATTEMPTS):
+        assert not admin_auth.check_password(s, "nope", 7)
+    assert admin_auth.password_locked(7)
+
+
+def test_panel_link_token_is_single_use():
+    import time as _t
+    from app import panel
+    token = panel.issue_link_token(7)
+    assert panel._links[token][0] == 7 and panel._links[token][1] > _t.time()
+    assert panel._links.pop(token)[0] == 7 and token not in panel._links

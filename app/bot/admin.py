@@ -15,7 +15,7 @@ from ..context import get_context
 from ..db import Order, OrderStatus as S, Session, get_setting, set_setting
 from ..i18n import t
 from ..pricing import RateUnavailable, pricing_config
-from .common import fmt_sum, markup, user_lang, webapp_button
+from .common import admin_button, fmt_sum, markup, user_lang, webapp_button
 from .notify import admin_buttons
 
 router = Router(name="admin")
@@ -45,7 +45,24 @@ async def admin_home(message: Message) -> None:
              signing=counts.get(S.CONNECT_SIGNING, 0) + counts.get(S.RENTING, 0),
              active=counts.get(S.ACTIVE, 0) + counts.get(S.AWAITING_LINK, 0), failed=counts.get(S.FAILED, 0),
              rate=rate, mode=mode, markup=markup_value, wallet_mode=ctx.settings.wallet_mode)
-    await message.answer(text, reply_markup=markup([webapp_button(t(lang, "admin.btn_panel"), admin=1)]))
+    await message.answer(text, reply_markup=markup([admin_button(t(lang, "admin.btn_panel"))]))
+
+
+@router.message(Command("panel"))
+async def panel_link(message: Message) -> None:
+    """One-time sign-in link for the standalone admin panel (ADMIN_PANEL_URL, e.g. on Vercel)."""
+    from urllib.parse import quote
+    from aiogram.types import InlineKeyboardButton
+    from ..panel import issue_link_token
+    settings = get_settings()
+    base = settings.admin_panel_url.strip().rstrip("/")
+    if not base.startswith("https://"):
+        await message.answer("ADMIN_PANEL_URL o'rnatilmagan (masalan https://giftrent-admin.vercel.app).")
+        return
+    token = issue_link_token(message.from_user.id)
+    url = f"{base}/#/login?t={token}&api={quote(settings.webapp_base, safe='')}"
+    await message.answer("🔐 Admin panelga kirish havolasi (10 daqiqa, bir marta ishlaydi):",
+                         reply_markup=markup([InlineKeyboardButton(text="🔐 Panelni ochish", url=url)]))
 
 
 @router.message(Command("markup"))

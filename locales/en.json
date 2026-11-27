@@ -29,7 +29,11 @@
     "balance": "Balance",
     "referral": "Referral",
     "top": "Top rating",
-    "topup": "Top up"
+    "topup": "Top up",
+    "market": "Market",
+    "inventory": "Inventory",
+    "activity": "Activity",
+    "cart": "Cart"
   },
   "banner": {
     "title": "Pay in UZS — by card transfer",
@@ -491,7 +495,8 @@
     "username": "@ Usernames",
     "number": "📞 Numbers",
     "username_one": "Username",
-    "number_one": "Anonymous number"
+    "number_one": "Anonymous number",
+    "stars": "⭐ Stars"
   },
   "wallet": {
     "title": "Balance",
@@ -606,5 +611,31 @@
   "uname": {
     "title": "Connect the username",
     "text": "The username connects to your Telegram through Fragment: follow the steps below."
+  },
+  "ui": {
+    "inv_sub": "Gifts you are renting — watch the time left",
+    "act_sub": "All orders and their status",
+    "cart_sub": "Your shopping basket — all that's left is to rent",
+    "select_all": "Select all",
+    "remove_selected": "Remove selected",
+    "cart_empty": "Your cart is empty",
+    "cart_added": "Added to cart",
+    "cart_removed": "Removed from cart",
+    "go_order": "Go to the order",
+    "view": "View",
+    "share": "Share",
+    "to_cart": "To cart",
+    "in_cart": "In cart",
+    "rent_for": "Rent for {price}",
+    "left": "{time} left",
+    "inv_empty": "No gifts rented right now",
+    "search_inv": "Search gifts",
+    "price_day": "Price per day",
+    "completed": "Completed",
+    "processing": "In progress",
+    "frozen": "Closed",
+    "dispute": "Dispute",
+    "rent_open": "Open",
+    "share_text": "Rent this gift"
   }
 }
