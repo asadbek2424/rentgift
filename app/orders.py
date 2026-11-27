@@ -126,12 +126,16 @@ def order_view(order: Order, *, admin: bool = False, settings=None) -> dict:
         "payment_expires_at": aware(order.payment_expires_at).isoformat() if order.payment_expires_at else None,
         "end_time": aware(order.end_time).isoformat() if order.end_time else None,
         "has_receipt": bool(order.receipt_file_id), "error": order.error,
+        "tg_waiting": bool(order.tg_wait_started and utcnow() - aware(order.tg_wait_started) < TG_WAIT),
+        "tg_error": order.tg_error or "",
         "kind": order.kind or "rent", "parent_id": order.parent_id,
         "category": order.category or "gift", "paid_by": order.paid_by or "card",
         "service_fee_uzs": order.service_fee_uzs or 0,
         "unique_add_uzs": order.unique_add_uzs or 0,
-        "rent_uzs": order.amount_uzs - (order.service_fee_uzs or 0) - (order.unique_add_uzs or 0),
-        "per_day_uzs": (order.amount_uzs - (order.service_fee_uzs or 0) - (order.unique_add_uzs or 0)) // max(1, order.days),
+        "promo_code": order.promo_code or "", "discount_uzs": order.discount_uzs or 0,
+        "rent_uzs": order.amount_uzs + (order.discount_uzs or 0) - (order.service_fee_uzs or 0) - (order.unique_add_uzs or 0),
+        "per_day_uzs": (order.amount_uzs + (order.discount_uzs or 0) - (order.service_fee_uzs or 0)
+                        - (order.unique_add_uzs or 0)) // max(1, order.days),
     }
     if admin:
         data.update({"user_id": order.user_id, "rate": order.rate_uzs_per_ton, "markup": order.markup_percent,
@@ -191,7 +195,7 @@ async def _listing(ctx: AppContext, nft_address: str) -> dict:
 
 
 # ---------------------------------------------------------------------------- user actions
-async def quote_for(ctx: AppContext, nft_address: str, days: int) -> dict:
+async def quote_for(ctx: AppContext, nft_address: str, days: int, raw: bool = False):
     listing = await _listing(ctx, nft_address)
     try:
         config = await pricing_config(ctx.rates)
@@ -200,7 +204,10 @@ async def quote_for(ctx: AppContext, nft_address: str, days: int) -> dict:
     low, high = rentable_days(listing["min_duration"], listing["max_duration"], config)
     if not low <= days <= high:
         raise ServiceError("days_out_of_range")
-    return {**make_quote(int(listing["price_per_day"]), days, config).as_dict(), "min_days": low, "max_days": high}
+    quote = make_quote(int(listing["price_per_day"]), days, config)
+    if raw:                       # internal callers (promo discount) need profit, which customers never see
+        return quote
+    return {**quote.as_dict(), "min_days": low, "max_days": high}
 
 
 async def _nft_info(ctx: AppContext, nft_address: str) -> dict:
@@ -216,7 +223,7 @@ async def _nft_info(ctx: AppContext, nft_address: str) -> dict:
         raise ServiceError("marketapp", 503) from None
 
 
-async def create_order(ctx: AppContext, user_id: int, nft_address: str, days: int) -> Order:
+async def create_order(ctx: AppContext, user_id: int, nft_address: str, days: int, promo: str = "") -> Order:
     if not isinstance(days, int) or days < 1:
         raise ServiceError("days_out_of_range")
     async with Session() as session:
@@ -248,6 +255,16 @@ async def create_order(ctx: AppContext, user_id: int, nft_address: str, days: in
         cost_nano=str(quote.cost_nano), fee_percent=str(quote.fee), cost_uzs=quote.cost_uzs, profit_uzs=quote.profit_uzs,
         service_fee_uzs=quote.service_fee_uzs,
         payment_expires_at=utcnow() + timedelta(minutes=ctx.settings.payment_window_minutes))
+    if promo:
+        from . import extras
+        try:
+            code = await extras.check_promo(promo, user_id, order.category or "gift")
+        except extras.PromoError as exc:
+            raise ServiceError(exc.code) from None
+        discount = extras.discount_for(code, order.amount_uzs, order.profit_uzs)
+        order.promo_code, order.discount_uzs = code.code, discount
+        order.amount_uzs -= discount
+        order.profit_uzs -= discount
     async with Session() as session:
         add = await unique_amount(session, order.amount_uzs, ctx.settings.unique_amount_max)
         order.unique_add_uzs = add
@@ -458,13 +475,26 @@ async def _set_tg_ready(user_id: int, ready: bool, name: str = "") -> None:
             await session.commit()
 
 
+TG_WAIT = timedelta(minutes=20)          # how long the server keeps checking a started Telegram login
+TG_REMIND_AFTER = timedelta(minutes=15)  # reminder to customers who rented but never connected
+_LOGIN_WORDS = ("login", "log in", "auth", "session", "not connected", "connect first", "unauthor", "expired", "revoked")
+
+
 def _display_error(exc: MarketappError) -> str:
-    text = json.dumps(exc.detail) if exc.detail else str(exc)
-    if "limit" in text.lower():
+    text = (json.dumps(exc.detail) if exc.detail else str(exc)).lower()
+    if "limit" in text or "too many" in text or exc.status == 429:
         return "display_limit"
-    if exc.status == 503 or exc.status is None:
+    if exc.status in (None, 500, 502, 503, 504):
         return "marketapp"
+    if exc.status in (401, 403) or any(w in text for w in _LOGIN_WORDS):
+        return "login_expired"
     return "display_failed"
+
+
+async def _set_tg_error(order_id: int, code: str) -> None:
+    async with Session() as session:
+        await session.execute(update(Order).where(Order.id == order_id).values(tg_error=code[:32]))
+        await session.commit()
 
 
 async def _forget_tg_login(ctx: AppContext, user_id: int) -> None:
@@ -487,7 +517,13 @@ async def display_gift(ctx: AppContext, order_id: int, actor: str) -> Order:
         order = await _transition(order_id, {S.AWAITING_LINK, S.ACTIVE}, S.CONNECTING, actor,
                                   connect_attempts=order.connect_attempts + 1)
         try:
-            response = await ctx.market.tg_display(order.nft_address, customer_id(order.user_id))
+            try:
+                response = await ctx.market.tg_display(order.nft_address, customer_id(order.user_id))
+            except MarketappError as first:
+                if _display_error(first) != "marketapp":
+                    raise
+                await asyncio.sleep(2)     # Marketapp/Telegram hiccup: one quiet retry before bothering the customer
+                response = await ctx.market.tg_display(order.nft_address, customer_id(order.user_id))
         except Exception as exc:          # never leave the order stuck in CONNECTING
             detail = getattr(exc, "detail", None)
             log.warning("tg display of order %s failed: %s %s", order_id, exc, detail)
@@ -496,12 +532,16 @@ async def display_gift(ctx: AppContext, order_id: int, actor: str) -> Order:
             if not isinstance(exc, MarketappError):
                 raise
             code = _display_error(exc)
-            if code == "display_failed" and exc.status == 400:
-                await _forget_tg_login(ctx, order.user_id)   # login expired/refused: next try gets a fresh link
-            raise ServiceError(code, 400 if code != "marketapp" else 503) from None
+            # forget the login only when Telegram really refused it — or after a second unexplained failure,
+            # so a customer is never stuck with a dead login, but a hiccup doesn't make them log in again
+            if code == "login_expired" or (code == "display_failed" and order.tg_error == "display_failed"):
+                await _forget_tg_login(ctx, order.user_id)
+            await _set_tg_error(order_id, code)
+            raise ServiceError(code, 400 if code != "marketapp" else 503, code) from None
         shown = str(response.get("displayed") or "") if isinstance(response, dict) else ""
         order = await _transition(order_id, {S.CONNECTING}, S.ACTIVE, actor, connected_at=utcnow(),
-                                  connect_response=json.dumps(response, ensure_ascii=False)[:2000])
+                                  connect_response=json.dumps(response, ensure_ascii=False)[:2000],
+                                  tg_wait_started=None, tg_error="")
     log.info("Order %s displayed on Telegram account %r", order_id, shown)
     if shown:
         await _set_tg_ready(order.user_id, True, shown)
@@ -529,10 +569,45 @@ async def tg_connect(ctx: AppContext, user_id: int, order_id: int) -> dict:
     status = str(response.get("status") or "")
     log.info("tg connect for user %s / order %s: %s", user_id, order_id, status)
     if status in ("ready", "confirmed"):
-        await _set_tg_ready(user_id, True, _tg_name(response))
+        return await _ready(ctx, order, user_id, response)
+    async with Session() as session:            # the worker keeps checking even if the Mini App gets closed
+        await session.execute(update(Order).where(Order.id == order_id).values(tg_wait_started=utcnow(), tg_error=""))
+        await session.commit()
+    return {"status": status or "waiting", "link": response.get("link")}
+
+
+def _tg_account_id(response: dict) -> int | None:
+    account = response.get("telegram") if isinstance(response, dict) else None
+    try:
+        return int(account.get("id")) if isinstance(account, dict) and account.get("id") else None
+    except (TypeError, ValueError):
+        return None
+
+
+async def _ready(ctx: AppContext, order: Order, user_id: int, response: dict) -> dict:
+    """Login confirmed: show the gift — unless it was confirmed from a different Telegram account."""
+    await _set_tg_ready(user_id, True, _tg_name(response))
+    account_id = _tg_account_id(response)
+    if account_id and account_id != user_id and not order.tg_allow_other:
+        await _set_tg_error(order.id, "wrong_account")
+        return {"status": "wrong_account", "account": _tg_name(response) or str(account_id)}
+    order = await display_gift(ctx, order.id, f"user:{user_id}")
+    return {"status": "displayed", "order": order}
+
+
+async def tg_account_choice(ctx: AppContext, user_id: int, order_id: int, use_it: bool) -> dict:
+    """After a 'wrong account' warning: show on that account anyway, or log out and start again."""
+    order = await get_order(order_id, user_id)
+    if order.status not in (S.AWAITING_LINK, S.ACTIVE):
+        raise ServiceError("bad_state", 409, order.status)
+    if use_it:
+        async with Session() as session:
+            await session.execute(update(Order).where(Order.id == order_id).values(tg_allow_other=True))
+            await session.commit()
         order = await display_gift(ctx, order_id, f"user:{user_id}")
         return {"status": "displayed", "order": order}
-    return {"status": status or "waiting", "link": response.get("link")}
+    await _forget_tg_login(ctx, user_id)
+    return await tg_connect(ctx, user_id, order_id)
 
 
 async def tg_poll(ctx: AppContext, user_id: int, order_id: int) -> dict:
@@ -554,10 +629,43 @@ async def tg_poll(ctx: AppContext, user_id: int, order_id: int) -> dict:
     status = str(response.get("status") or "")
     if status in ("ready", "confirmed"):
         log.info("tg login confirmed for user %s / order %s", user_id, order_id)
-        await _set_tg_ready(user_id, True, _tg_name(response))
-        order = await display_gift(ctx, order_id, f"user:{user_id}")
-        return {"status": "displayed", "order": order}
+        return await _ready(ctx, order, user_id, response)
     return {"status": status or "waiting", "link": response.get("link")}
+
+
+async def watch_tg_logins(ctx: AppContext, now) -> None:
+    """Server side of «Telegramni ulash». On Android the Mini App is closed while the customer confirms the login
+    in Telegram, so nobody would poll: the worker finishes the job and the bot tells the customer. Also sends one
+    reminder to customers who rented a gift but did not connect within TG_REMIND_AFTER."""
+    for order in await _orders({S.AWAITING_LINK}):
+        if (order.category or "gift") != "gift":
+            continue
+        started = aware(order.tg_wait_started)
+        if started and now - started < TG_WAIT and order.tg_error != "wrong_account":
+            try:
+                response = await ctx.market.tg_status(customer_id(order.user_id))
+            except MarketappError:
+                continue
+            if str(response.get("status") or "") in ("ready", "confirmed"):
+                try:
+                    result = await _ready(ctx, order, order.user_id, response)
+                    if result["status"] == "wrong_account":
+                        await ctx.notifier.user(order, "tg_wrong_account", account=result["account"])
+                except ServiceError as exc:
+                    log.info("auto display of order %s failed: %s", order.id, exc.code)
+                    if exc.code == "display_limit":
+                        await ctx.notifier.user(order, "tg_limit")
+                continue
+        elif started and now - started >= TG_WAIT:
+            async with Session() as session:
+                await session.execute(update(Order).where(Order.id == order.id).values(tg_wait_started=None))
+                await session.commit()
+        rented = aware(order.rented_at) or aware(order.updated_at)
+        if not order.tg_reminded and rented and now - rented > TG_REMIND_AFTER and not (started and now - started < TG_WAIT):
+            async with Session() as session:
+                await session.execute(update(Order).where(Order.id == order.id).values(tg_reminded=True))
+                await session.commit()
+            await ctx.notifier.user(order, "tg_reminder")
 
 
 async def login_code(ctx: AppContext, user_id: int, order_id: int) -> dict:
@@ -915,6 +1023,19 @@ async def worker_tick(ctx: AppContext) -> None:
         await purchases.worker_tick(ctx)
     except Exception:
         log.exception("Top-up / purchase tick failed")
+
+    # 0b. Telegram logins confirmed while the Mini App was closed (Android) + connect reminders
+    try:
+        await watch_tg_logins(ctx, now)
+    except Exception:
+        log.exception("Telegram login watcher failed")
+
+    # 0c. favorites that got cheaper (every 30 min)
+    try:
+        from .extras import watch_favorites
+        await watch_favorites(ctx)
+    except Exception:
+        log.exception("Favorites watcher failed")
 
     # 1. unpaid orders past their window
     for order in await _orders({S.AWAITING_PAYMENT}):

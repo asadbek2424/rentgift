@@ -41,9 +41,24 @@ export default function Dashboard() {
         actions={<button className="btn-dark" onClick={() => nav('/orders')}><ShoppingBag size={16} /> Buyurtmalar</button>}
       />
 
+      {d.health?.walletLow && (
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-rose-300/60 bg-rose-50/80 px-4 py-3 text-sm text-rose-800">
+          <AlertTriangle size={18} className="shrink-0" />
+          <span><b>Admin hamyonida TON kam qoldi: {d.health.walletTon} TON</b> (chegara {d.health.minTon} TON). Ijaralar to'xtab qolmasligi uchun hamyonni to'ldiring.</span>
+        </div>
+      )}
+      {d.health?.marketappDown && (
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-amber-300/60 bg-amber-50/80 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle size={18} className="shrink-0" />
+          <span><b>Marketapp javob bermayapti.</b> Katalog va ijaralar vaqtincha ishlamasligi mumkin.</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard icon={Wallet} tone="emerald" title="Shu oy tushum" value={som(d.monthRevenue)} change={pct(d.monthRevenue, d.prevRevenue)} hint={`Jami: ${som(d.totalRevenue)}`} />
-        <StatCard icon={TrendingUp} tone="amber" title="Shu oy sof foyda" value={som(d.monthProfit)} change={pct(d.monthProfit, d.prevProfit)} hint={`Jami: ${som(d.totalProfit)}`} />
+        {d.role === 'operator'
+          ? <StatCard icon={ClipboardCheck} tone="amber" title="Tekshirish kutyapti" value={fmt((d.review || 0) + (d.openTopups || 0))} hint="Chek va balans so'rovlari" />
+          : <StatCard icon={TrendingUp} tone="amber" title="Shu oy sof foyda" value={som(d.monthProfit)} change={pct(d.monthProfit, d.prevProfit)} hint={`Jami: ${som(d.totalProfit)}`} />}
         <StatCard icon={KeyRound} tone="sky" title="Faol ijaralar" value={fmt(d.activeRentals)} hint="Hozir mijozlar profilida" />
         <StatCard icon={Users} tone="violet" title="Foydalanuvchilar" value={fmt(d.totalUsers)} hint={`Bugun: +${fmt(d.newToday)} · faol ${fmt(d.activeToday)}`} />
       </div>

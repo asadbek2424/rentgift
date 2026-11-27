@@ -248,7 +248,7 @@
     "price_changed": "Gift narxi o'zgargan.",
     "wallet": "Hamyon xatosi.",
     "listing_stale": "Narx ma'lumoti eskirgan. Katalogni yangilab, giftni qayta oching.",
-    "display_limit": "Fragment cheklovi: bitta gift soatiga 3 martadan ko'p ko'chirilmaydi. Birozdan keyin urinib ko'ring.",
+    "display_limit": "Fragment cheklovi: bitta giftni soatiga 3 martadan ko'p ko'chirib bo'lmaydi. Taxminan 20 daqiqadan keyin qayta urinib ko'ring.",
     "display_failed": "Telegram yoki Fragment so'rovni rad etdi. Telegramni qayta ulang yoki Fragment havolasi usulidan foydalaning.",
     "extend_unavailable": "Bu ijarani hozir uzaytirib bo'lmaydi.",
     "extend_pending": "Bu ijara uchun uzaytirish buyurtmasi allaqachon bor.",
@@ -261,7 +261,14 @@
     "topup_not_found": "To'ldirish topilmadi.",
     "not_found": "Topilmadi.",
     "bad_amount": "Summa noto'g'ri.",
-    "user_not_found": "Foydalanuvchi topilmadi."
+    "user_not_found": "Foydalanuvchi topilmadi.",
+    "login_expired": "Telegram kirishi eskirdi. «Telegramni ulash» ni qayta bosing — yangi havola beriladi.",
+    "wrong_account": "Kirish boshqa Telegram akkauntdan tasdiqlandi.",
+    "promo_invalid": "Promo-kod topilmadi yoki faol emas",
+    "promo_expired": "Promo-kod muddati tugagan",
+    "promo_used_up": "Promo-kod limiti tugagan",
+    "promo_already_used": "Siz bu promo-koddan allaqachon foydalangansiz",
+    "favorites_full": "Sevimlilar ro'yxati to'la (100 ta)"
   },
   "bot": {
     "welcome": "Assalomu alaykum, {name}! 👋\n\n<b>{app}</b> — Telegram giftlarini so'mda ijaraga oling. Gift Fragment orqali to'g'ridan-to'g'ri sizning Telegram profilingizga ulanadi.\n\nBoshlash uchun pastdagi tugmani bosing.",
@@ -295,7 +302,10 @@
     "number_ready": "📞 <b>{name}</b> raqami tayyor!\n\nTelegram'da shu raqam bilan kiring — kirish kodini ilovadagi buyurtma sahifasidan olasiz.\nIjara tugashi: {end}",
     "awaiting_link_username": "🎉 <b>{name}</b> ijaraga olindi!\n\nIlovada buyurtmani oching va Fragment orqali ulash qadamlarini bajaring.",
     "refunded_balance": "💸 Buyurtma #{id}: <b>{amount}</b> balansingizga qaytarildi.",
-    "open_app": "Ilovani ochish"
+    "open_app": "Ilovani ochish",
+    "tg_reminder": "🎁 «{name}» ijarangiz tayyor, lekin hali Telegram profilingizga chiqarilmadi.\n\nIlovani oching → «Telegramni ulash» → Telegram'da «Tasdiqlash» ni bosing. Bu bir martalik qadam.",
+    "tg_wrong_account": "⚠️ «{name}» uchun kirish boshqa akkauntdan ({account}) tasdiqlandi. Ilovani ochib, qaysi akkauntga qo'yishni tanlang.",
+    "tg_limit": "⏳ «{name}»: Fragment cheklovi (soatiga 3 marta). 20 daqiqadan keyin ilovada «Telegramni ulash» ni qayta bosing."
   },
   "admin": {
     "only": "Bu buyruq faqat admin uchun.",
@@ -457,7 +467,18 @@
     "connected_as": "Ulangan akkaunt: {name}",
     "alt_title": "Boshqa usul: Fragment havolasi",
     "android": "Havola ochilmasa, uni nusxalab Telegramda oching.",
-    "timeout": "Vaqt tugadi. Qaytadan urinib ko'ring."
+    "timeout": "Vaqt tugadi. Qaytadan urinib ko'ring.",
+    "step1": "Pastdagi «Telegramni ulash» tugmasini bosing",
+    "step2": "Telegram'da «Kirishga urinish» xabari keladi — undagi «Tasdiqlash» (Confirm) ni bosing",
+    "step3": "Ilovaga qayting — gift o'zi profilingizga chiqadi",
+    "where": "Xabar qayerda? Telegram → chatlar ro'yxatida «Telegram» (ko'k belgili rasmiy chat).",
+    "auto": "Ilova yopilib qolsa ham xavotir olmang: tasdiqlaganingizdan keyin gift avtomatik qo'yiladi va bot xabar beradi.",
+    "wrong_title": "Boshqa akkaunt ulandi",
+    "wrong_text": "Kirish {account} akkauntidan tasdiqlandi — bu siz ilovani ochgan akkaunt emas.",
+    "wrong_use": "Baribir shu akkauntga qo'yish",
+    "wrong_reset": "O'z akkauntim bilan qayta ulash",
+    "alt_hint": "1-usul ishlamasa (ayniqsa kompyuter yoki ba'zi Android telefonlarda):",
+    "method2": "2-usul: Fragment orqali"
   },
   "ext": {
     "label": "uzaytirish",
@@ -549,7 +570,8 @@
     "ref_reward": "🎁 Taklif qilgan do'stingiz xarid qildi: balansingizga <b>+{amount}</b>.",
     "ref_joined": "👥 {name} sizning havolangiz orqali qo'shildi. Uning har bir xaridi uchun bonus olasiz!",
     "purchase_done": "⭐ <b>{what}</b> @{to} ga yuborildi!",
-    "purchase_refunded": "↩️ {what} @{to} ga yuborilmadi. <b>{amount}</b> balansingizga qaytarildi."
+    "purchase_refunded": "↩️ {what} @{to} ga yuborilmadi. <b>{amount}</b> balansingizga qaytarildi.",
+    "fav_cheaper": "❤️ Sevimli giftingiz arzonladi!\n\n<b>{name}</b> — kunlik narx {percent}% ga tushdi. Hozir ijaraga olish foydali."
   },
   "stars": {
     "seg_stars": "Stars",
@@ -690,5 +712,23 @@
     "title": "Kanalimizga qo'shiling",
     "text": "Yangi giftlar, aksiyalar va muhim yangiliklarni o'tkazib yubormaslik uchun kanalimizga a'zo bo'ling.",
     "join": "Kanalga qo'shilish"
+  },
+  "x": {
+    "bell": "Bildirishnomalar",
+    "bell_empty": "Hozircha bildirishnoma yo'q",
+    "favorites": "Sevimlilar",
+    "fav_empty": "Gift kartochkasida ❤️ ni bosing — u shu yerda chiqadi va arzonlasa xabar beramiz",
+    "fav_added": "Sevimlilarga qo'shildi ❤️ Arzonlasa xabar beramiz",
+    "fav_removed": "Sevimlilardan olindi",
+    "fav_gone": "Hozir bozorda yo'q",
+    "promo": "Promo-kod",
+    "promo_ph": "Promo-kodni kiriting",
+    "promo_apply": "Qo'llash",
+    "promo_ok": "Promo-kod qo'llandi: −{amount}",
+    "promo_remove": "Olib tashlash",
+    "discount": "Chegirma",
+    "rerent": "Yana ijaraga olish",
+    "rerent_gone": "Bu gift hozir ijaraga berilmayapti",
+    "just_now": "hozirgina"
   }
 }

@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     # --- Telegram ---------------------------------------------------------
     bot_token: str = ""
     admin_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
+    # Operators: may sign in to the admin panel and work with orders / top-ups / purchases / users / connect issues,
+    # but cannot see profit, change prices, card, bot settings, channels, promo codes or send broadcasts.
+    operator_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
     webapp_url: str = "http://localhost:8080"  # public HTTPS URL of this server (Mini App)
     app_name: str = "RentaGift"
     default_lang: Literal["uz", "ru", "en"] = "uz"
@@ -40,6 +43,7 @@ class Settings(BaseSettings):
     toncenter_url: str = "https://toncenter.com"
     max_tx_overpay_percent: float = 5.0     # safety: refuse to sign if Marketapp asks more than quote (+fees)
     max_tx_fee_ton: float = 0.5
+    min_ton_balance: float = 5.0            # alert admins when the admin wallet holds less TON than this (0 = off)
 
     # --- Payment (manual card transfer) -------------------------------------
     card_number: str = ""
@@ -100,7 +104,14 @@ class Settings(BaseSettings):
     backup_dir: str = "data/backups"
     backup_send_to_admins: bool = True       # also send each backup file to admins in Telegram (off-site copy)
 
-    @field_validator("admin_ids", mode="before")
+    @property
+    def staff_ids(self) -> list[int]:
+        return list(dict.fromkeys([*self.admin_ids, *self.operator_ids]))
+
+    def role_of(self, user_id: int) -> str:
+        return "owner" if user_id in self.admin_ids else "operator" if user_id in self.operator_ids else ""
+
+    @field_validator("admin_ids", "operator_ids", mode="before")
     @classmethod
     def _split_ids(cls, value):
         if isinstance(value, str):

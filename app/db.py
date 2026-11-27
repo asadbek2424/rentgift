@@ -117,6 +117,13 @@ class Order(Base):
     connect_response: Mapped[str] = mapped_column(Text, default="")
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Telegram connect tracking: the server keeps polling after the customer leaves the Mini App (Android closes it)
+    tg_wait_started: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    tg_reminded: Mapped[bool] = mapped_column(Boolean, default=False)
+    tg_allow_other: Mapped[bool] = mapped_column(Boolean, default=False)   # customer chose to show on another account
+    tg_error: Mapped[str] = mapped_column(String(32), default="")          # last connect problem (shown to admins)
+    promo_code: Mapped[str] = mapped_column(String(24), default="", index=True)
+    discount_uzs: Mapped[int] = mapped_column(BigInteger, default=0)
 
     error: Mapped[str] = mapped_column(String(64), default="")
     admin_note: Mapped[str] = mapped_column(Text, default="")
@@ -227,6 +234,47 @@ class Purchase(Base):
     error: Mapped[str] = mapped_column(String(256), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Notice(Base):
+    """Copy of every bot message sent to a customer: the 🔔 history in the Mini App."""
+    __tablename__ = "notices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    text: Mapped[str] = mapped_column(Text)
+    order_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tab: Mapped[str] = mapped_column(String(16), default="")
+    read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Promo(Base):
+    """Promo code made in the admin panel (percent OR fixed so'm discount)."""
+    __tablename__ = "promos"
+
+    code: Mapped[str] = mapped_column(String(24), primary_key=True)
+    percent: Mapped[int] = mapped_column(Integer, default=0)
+    amount_uzs: Mapped[int] = mapped_column(BigInteger, default=0)
+    max_uses: Mapped[int] = mapped_column(Integer, default=0)          # 0 = unlimited
+    per_user: Mapped[int] = mapped_column(Integer, default=1)          # 0 = unlimited
+    category: Mapped[str] = mapped_column(String(10), default="")      # "" = any, gift | username | number
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    note: Mapped[str] = mapped_column(String(200), default="")
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Favorite(Base):
+    __tablename__ = "favorites"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    nft_address: Mapped[str] = mapped_column(String(80), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), default="")
+    image: Mapped[str] = mapped_column(String(512), default="")
+    price_nano: Mapped[str] = mapped_column(String(40), default="")        # per-day price when liked
+    alert_price_nano: Mapped[str] = mapped_column(String(40), default="")  # price of the last alert (no repeats)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Setting(Base):

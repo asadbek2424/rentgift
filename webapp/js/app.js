@@ -78,6 +78,7 @@ function statusBadge(status) {
 
 function clearTimers() {
   state.timers.forEach(clearInterval); state.timers = [];
+  if (tgOnVisible) { document.removeEventListener('visibilitychange', tgOnVisible); tgOnVisible = null; }
   clearInterval(state.poll); state.poll = null;
 }
 
@@ -140,11 +141,14 @@ const TAB_LABEL = { catalog: 'nav.market', rentals: 'nav.inventory', activity: '
 
 function pageTitle() {
   if (state.view?.name === 'order') return t('order.title', { id: state.view.id });
+  if (state.view?.name === 'notices') return t('x.bell');
+  if (state.view?.name === 'favorites') return t('x.favorites');
   if (state.view) return t(`nav.${state.view.name}`);
   return ['catalog', 'profile'].includes(state.tab) ? '' : t(TAB_LABEL[state.tab] || `nav.${state.tab}`);
 }
 
 function pageSub() {
+  if (state.view?.name === 'notices' || state.view?.name === 'favorites') return '';
   if (state.view?.name === 'cart') return t('ui.cart_sub');
   if (state.view) return '';
   return { rentals: t('ui.inv_sub'), activity: t('ui.act_sub') }[state.tab] || '';
@@ -159,7 +163,8 @@ function renderTopbar() {
        <button class="stars-pill" id="tb-stars"><span class="lbl">Stars</span>${icons.star}</button>`;
   const n = state.cart.length;
   const right = user
-    ? `<button class="round-btn" id="tb-cart" aria-label="${esc(t('nav.cart'))}">${flat.basket}<i ${n ? '' : 'hidden'}>${n}</i></button>
+    ? `<button class="round-btn" id="tb-bell" aria-label="${esc(t('x.bell'))}">${icons.bell}<i ${state.me?.unread ? '' : 'hidden'}>${Math.min(99, state.me?.unread || 0)}</i></button>
+       <button class="round-btn" id="tb-cart" aria-label="${esc(t('nav.cart'))}">${flat.basket}<i ${n ? '' : 'hidden'}>${n}</i></button>
        <div class="bal-pill"><button class="bal-plus" id="tb-plus" aria-label="top up">${icons.plus}</button>
        <button class="bal-sum" id="tb-bal">${esc(Number(user.balance_uzs || 0).toLocaleString('ru-RU').replace(/,/g, ' '))}<span class="sum-ico">${esc(t('common.sum'))}</span></button></div>`
     : `<button class="icon-btn" id="tb-lang" aria-label="language">${icons.globe}</button>`;
@@ -170,6 +175,7 @@ function renderTopbar() {
     title.innerHTML = pageTitle() ? `${esc(pageTitle())}${sub ? `<small>${esc(sub)}</small>` : ''}` : '';
   }
   $('#tb-cart', bar)?.addEventListener('click', () => openView('cart'));
+  $('#tb-bell', bar)?.addEventListener('click', () => openView('notices'));
   $('#tb-profile', bar)?.addEventListener('click', () => switchTab('profile'));
   $('#tb-stars', bar)?.addEventListener('click', () => { state.category = 'stars'; switchTab('catalog'); });
   $('#tb-bal', bar)?.addEventListener('click', () => openView('balance'));
@@ -219,6 +225,8 @@ export async function render() {
   const view = $('#view');
   if (state.view?.name === 'order') return orderView(view, state.view.id);
   if (state.view?.name === 'guide') return guideView(view);
+  if (state.view?.name === 'notices') return noticesView(view);
+  if (state.view?.name === 'favorites') return favoritesView(view);
   if (state.view) {
     const mod = await import('./wallet.js');
     if (state.view.name === 'cart') return cartView(view);
@@ -682,11 +690,12 @@ function sortSheet() {
 }
 
 // ------------------------------------------------------------------ price breakdown ("Ijara × kun" + "Xizmat haqi")
-function breakdown(perDay, days, fee, total, add = 0) {
+function breakdown(perDay, days, fee, total, add = 0, discount = 0) {
   return `<div class="card breakdown" style="padding:6px 16px">
     <div class="kv"><span>${esc(t('price.rent', { per: money(perDay), days }))}</span><b>${money(perDay * days)}</b></div>
     ${fee ? `<div class="kv"><span>${esc(t('price.fee'))}</span><b>${money(fee)}</b></div>` : ''}
     ${add ? `<div class="kv"><span>${esc(t('price.unique'))}</span><b>+${money(add)}</b></div>` : ''}
+    ${discount ? `<div class="kv disc"><span>${esc(t('x.discount'))}</span><b>−${money(discount)}</b></div>` : ''}
     <div class="kv"><span><b style="color:var(--text)">${esc(t('price.total'))}</b></span><b style="font-size:17px">${money(total)}</b></div></div>`;
 }
 
@@ -709,12 +718,14 @@ function giftSheet(g) {
       <div class="gd-actions">
         <button id="gd-share">${flat.share}<span>${esc(t('ui.share'))}</span></button>
         <button id="gd-cart" class="${inCart(g.address) ? 'on' : ''}">${flat.basket}<span>${esc(t(inCart(g.address) ? 'ui.in_cart' : 'ui.to_cart'))}</span></button>
+        ${other ? '' : `<button id="gd-fav" class="fav ${isFav(g.address) ? 'on' : ''}">${icons.heart}<span>${esc(t('x.favorites'))}</span></button>`}
       </div>
     </div>
     <div class="card" style="padding:14px">
       <div class="stepper"><button id="minus">−</button><div class="val"><b id="days"></b><span>${esc(t('gift.days'))}</span></div><button id="plus">+</button></div>
       <div class="chips mt" id="quick" style="margin-bottom:0"></div>
     </div>
+    <div class="promo-box mt" id="promo-box"><button class="promo-open" id="promo-open">${icons.tag}<span>${esc(t('x.promo'))}</span></button></div>
     <div class="mt" id="bd"></div><p class="note center" id="ton" style="margin-top:6px"></p>
     <p class="note center">${esc(other ? t('catalog.other_hint') : t('gift.how'))}</p>
     <div class="sticky-cta"><button class="btn" id="rent">${esc(t('gift.rent'))}</button></div>`;
@@ -733,6 +744,32 @@ function giftSheet(g) {
     }
     sheet.parentElement.classList.add('gift-ov');   // see-through backdrop: the gift floats over the blurred app
     let seq = 0;
+    let promo = null;                                // {code, discount_uzs}
+    $('#gd-fav', sheet)?.addEventListener('click', e => toggleFav(g, e.currentTarget));
+    const promoUi = () => {
+      const box = $('#promo-box', sheet);
+      if (promo) {
+        box.innerHTML = `<div class="promo-on">${icons.tag}<span>${esc(t('x.promo_ok', { amount: money(promo.discount_uzs) }))}</span><b>${esc(promo.code)}</b>
+          <button id="promo-del">${esc(t('x.promo_remove'))}</button></div>`;
+        $('#promo-del', box).onclick = () => { promo = null; promoUi(); update(); };
+        return;
+      }
+      box.innerHTML = `<button class="promo-open" id="promo-open">${icons.tag}<span>${esc(t('x.promo'))}</span></button>`;
+      $('#promo-open', box).onclick = () => {
+        box.innerHTML = `<div class="promo-form"><input id="promo-in" maxlength="24" autocapitalize="characters" placeholder="${esc(t('x.promo_ph'))}">
+          <button class="btn" id="promo-go">${esc(t('x.promo_apply'))}</button></div>`;
+        const input = $('#promo-in', box); input.focus();
+        const go = async () => {
+          const code = input.value.trim();
+          if (!code) return;
+          $('#promo-go', box).disabled = true;
+          try { promo = await api.promoCheck(code, g.address, days); haptic('medium'); promoUi(); update(); }
+          catch (err) { toast(errText(err), true); $('#promo-go', box).disabled = false; }
+        };
+        $('#promo-go', box).onclick = go;
+        input.onkeydown = ev => { if (ev.key === 'Enter') go(); };
+      };
+    };
     $('#gd-share', sheet).onclick = () => {
       const bot = state.me?.app?.bot_username;
       const url = bot ? `https://t.me/${bot}?startapp=g_${g.address}` : location.href;
@@ -755,10 +792,13 @@ function giftSheet(g) {
       const mine = ++seq;
       try {
         const q = await api.quote(g.address, days);
+        if (promo) promo = await api.promoCheck(promo.code, g.address, days).catch(() => promo);
         if (mine !== seq) return;
-        $('#bd', sheet).innerHTML = breakdown(q.per_day_uzs, q.days, q.service_fee_uzs || 0, q.amount_uzs);
+        const off = promo ? promo.discount_uzs : 0;
+        $('#bd', sheet).innerHTML = breakdown(q.per_day_uzs, q.days, q.service_fee_uzs || 0, q.amount_uzs - off, 0, off);
+        if (promo) promoUi();
         $('#ton', sheet).textContent = '';
-        $('#rent', sheet).textContent = t('ui.rent_for', { price: money(q.amount_uzs) });
+        $('#rent', sheet).textContent = t('ui.rent_for', { price: money(q.amount_uzs - off) });
         $('#rent', sheet).disabled = false;
       } catch (e) {
         if (mine !== seq) return;
@@ -771,12 +811,78 @@ function giftSheet(g) {
     $('#rent', sheet).onclick = async e => {
       e.target.disabled = true;
       try {
-        const order = await api.createOrder(g.address, days);
+        const order = await api.createOrder(g.address, days, promo?.code || '');
         haptic('medium'); close(); state.orders = null; openOrder(order.id);
       } catch (err) { toast(errText(err), true); e.target.disabled = false; }
     };
+    promoUi();
     update();
   });
+}
+
+// ------------------------------------------------------------------ 🔔 notifications / ❤️ favorites
+function ago(iso) {
+  const s = (Date.now() - new Date(iso)) / 1000;
+  if (s < 60) return t('x.just_now');
+    return dateTime(iso);
+}
+
+async function noticesView(view) {
+  view.innerHTML = `<div class="skeleton" style="height:70px"></div><div class="skeleton mt" style="height:70px"></div>`;
+  let data;
+  try { data = await api.notices(); } catch (e) { view.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
+  if (state.view?.name !== 'notices') return;
+  view.innerHTML = data.items.length ? `<div class="notices">${data.items.map(n => `
+    <button class="notice ${n.read ? '' : 'unread'}" ${n.order_id ? `data-order="${n.order_id}"` : n.tab ? `data-tab="${esc(n.tab)}"` : ''}>
+      <i>${icons.bell}</i><div><p>${esc(n.text).replace(/\n/g, '<br>')}</p><small>${esc(ago(n.at))}</small></div></button>`).join('')}</div>`
+    : `<div class="empty"><div class="hero-art">${art.giftBox}</div>${esc(t('x.bell_empty'))}</div>`;
+  view.querySelectorAll('[data-order]').forEach(b => b.onclick = () => openOrder(b.dataset.order));
+  view.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+    const tab = b.dataset.tab;
+    if (tab === 'favorites') openView('favorites'); else if (tab === 'balance') openView('balance'); else switchTab(tab === 'stars' ? 'stars' : 'activity');
+  });
+  if (data.unread) {
+    api.noticesRead().catch(() => {});
+    if (state.me) { state.me.unread = 0; renderTopbar(); }
+  }
+}
+
+async function favoritesView(view) {
+  view.innerHTML = `<div class="grid">${'<div class="skeleton" style="height:210px"></div>'.repeat(4)}</div>`;
+  let data;
+  try { data = await api.favorites(); } catch (e) { view.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
+  if (state.view?.name !== 'favorites') return;
+  if (!data.items.length) { view.innerHTML = `<div class="empty"><div class="hero-art">${art.giftBox}</div>${esc(t('x.fav_empty'))}</div>`; return; }
+  view.innerHTML = `<div class="grid">${data.items.map(g => `<div class="fav-wrap ${g.available ? '' : 'gone'}">${giftCard(g)}
+    ${g.available ? '' : `<span class="fav-gone">${esc(t('x.fav_gone'))}</span>`}</div>`).join('')}</div>`;
+  view.querySelectorAll('[data-gift]').forEach(b => b.onclick = () => {
+    const g = data.items.find(x => x.address === b.dataset.gift);
+    if (!g) return;
+    if (g.available) giftSheet(g); else rerent({ nft_address: g.address });
+  });
+  bindCartButtons(view, () => data.items.filter(x => x.available));
+}
+
+// expired/cancelled rental → open the same gift again (if it is still for rent)
+async function rerent(o, btn) {
+  if (btn) btn.disabled = true;
+  try { giftSheet(await api.gift(o.nft_address)); }
+  catch (e) { toast(e.code === 'gift_unavailable' || e.code === 'listing_stale' ? t('x.rerent_gone') : errText(e), true); }
+  if (btn) btn.disabled = false;
+}
+
+export function isFav(address) { return (state.me?.favorites || []).includes(address); }
+
+export async function toggleFav(g, btn) {
+  const on = isFav(g.address);
+  try {
+    if (on) await api.favDel(g.address); else await api.favAdd(g.address);
+    const list = state.me.favorites || (state.me.favorites = []);
+    if (on) list.splice(list.indexOf(g.address), 1); else list.push(g.address);
+    haptic(on ? 'light' : 'medium');
+    toast(t(on ? 'x.fav_removed' : 'x.fav_added'));
+    if (btn) btn.classList.toggle('on', !on);
+  } catch (e) { toast(errText(e), true); }
 }
 
 // ------------------------------------------------------------------ order page
@@ -853,58 +959,121 @@ function numberCard(o) {
     <button class="btn mt" id="get-code">${icons.phone.replace('<svg', '<svg width="18" height="18"')} ${esc(t('number.get'))}</button></div>`;
 }
 
+let tgOnVisible = null;   // one visibility listener for the Telegram connect screen (removed in clearTimers)
+
+// Picture of the Telegram service message the customer must confirm ("Login attempt … Confirm / Decline").
+const TG_CONFIRM_ART = `<svg class="tg-art" viewBox="0 0 300 118" aria-hidden="true">
+  <rect x="1" y="1" width="298" height="116" rx="16" fill="#17212b" stroke="#2b5278"/>
+  <circle cx="26" cy="27" r="13" fill="#2b8cff"/><path d="M20 27.5l12-5.2-2.1 11-3.8-2.9-2 1.9.3-3.3 5.6-5-6.9 4.3z" fill="#fff"/>
+  <text x="46" y="24" fill="#fff" font-size="12" font-weight="700" font-family="Manrope,Arial">Telegram</text>
+  <circle cx="111" cy="20" r="5" fill="#2b8cff"/><path d="m108.6 20 1.6 1.6 3-3.2" stroke="#fff" stroke-width="1.4" fill="none"/>
+  <text x="46" y="38" fill="#8e96a4" font-size="9.5" font-family="Manrope,Arial">Login attempt · Fragment</text>
+  <rect x="14" y="50" width="272" height="22" rx="6" fill="#1e2c3a"/>
+  <text x="24" y="65" fill="#c7d0db" font-size="9.5" font-family="Manrope,Arial">Someone wants to log in to your account…</text>
+  <rect x="14" y="80" width="132" height="26" rx="8" fill="#2b8cff"/><text x="80" y="97" fill="#fff" font-size="11" font-weight="800" text-anchor="middle" font-family="Manrope,Arial">Confirm ✓</text>
+  <rect x="154" y="80" width="132" height="26" rx="8" fill="#26323f"/><text x="220" y="97" fill="#8e96a4" font-size="11" font-weight="700" text-anchor="middle" font-family="Manrope,Arial">Decline</text>
+  <circle cx="80" cy="93" r="22" fill="none" stroke="#ffc24d" stroke-width="2" stroke-dasharray="4 3"/>
+</svg>`;
+
 function tgCard(o, again = false) {
   const name = state.me?.user?.tg_display_name;
-  return `<div class="card">
+  const steps = again ? '' : `<ol class="tg-steps">
+      <li><i>1</i><span>${esc(t('tgc.step1'))}</span></li>
+      <li><i>2</i><span>${esc(t('tgc.step2'))}</span></li>
+      <li><i>3</i><span>${esc(t('tgc.step3'))}</span></li></ol>
+    ${TG_CONFIRM_ART}
+    <p class="note tg-where">${esc(t('tgc.where'))}</p>`;
+  return `<div class="card tg-card">
     <h3 style="margin:0 0 6px;font-size:18px">${esc(t(again ? 'tgc.again' : 'tgc.title'))}</h3>
     ${again ? '' : `<p class="note" style="margin-top:0">${esc(t('tgc.text'))}</p>`}
+    ${steps}
     ${name ? `<p class="note accent">${esc(t('tgc.connected_as', { name }))}</p>` : ''}
+    ${o.tg_error && o.tg_error !== 'wrong_account' ? `<p class="note warn">⚠️ ${esc(t(`error.${o.tg_error}`))}</p>` : ''}
     <div id="tg-box"><button class="btn mt" id="tg-start">${icons.telegram.replace('<svg', '<svg width="19" height="19"')} ${esc(t(again ? 'tgc.again' : 'tgc.btn'))}</button></div>
+    ${again ? '' : `<p class="note tg-auto">ℹ️ ${esc(t('tgc.auto'))}</p>`}
   </div>`;
+}
+
+// 2nd way (Fragment "Connect TON" link): always visible, not hidden behind a collapsed row.
+function method2(o, relink = false) {
+  return `<div class="card method2 mt"><div class="m2-head"><span class="m2-badge">2</span><b>${esc(t('tgc.method2'))}</b></div>
+    <p class="note" style="margin-top:4px">${esc(t('tgc.alt_hint'))}</p>
+    <details class="alt-way"><summary>${esc(t('tgc.alt_title'))}</summary>${linkCard(o, relink)}</details></div>`;
 }
 
 function bindTg(view, o) {
   const box = $('#tg-box', view);
   if (!box) return;
   let link = null, started = Date.now(), timer = null, busy = false;
-  const stop = () => { clearInterval(timer); state.timers = state.timers.filter(x => x !== timer); };
+  const stop = () => { clearInterval(timer); state.timers = state.timers.filter(x => x !== timer); timer = null; };
   const done = async () => {
     stop(); haptic('medium');
     try { state.me = await api.me(); } catch { /* keep old profile */ }
     toast(t('tgc.displayed', { account: state.me?.user?.tg_display_name || 'Telegram' }));
     render();
   };
+  const msgFor = status => t(status === 'consumed' ? 'tgc.consumed' : status === 'refresh' ? 'tgc.refresh' : 'tgc.waiting');
   const waitingUi = (status) => {
-    box.innerHTML = `<div class="waiting mt"><div class="spinner"></div><p id="tg-msg">${esc(t(status === 'consumed' ? 'tgc.consumed' : status === 'refresh' ? 'tgc.refresh' : 'tgc.waiting'))}</p></div>
+    box.innerHTML = `<div class="waiting mt"><div class="spinner"></div><p id="tg-msg">${esc(msgFor(status))}</p></div>
       <button class="btn mt" id="tg-open">${icons.telegram.replace('<svg', '<svg width="19" height="19"')} ${esc(t('tgc.open'))}</button>
       <button class="btn secondary mt" id="tg-copy">${esc(t('tgc.copy_link'))}</button>
       <p class="note center">${esc(t('tgc.android'))}</p>`;
     $('#tg-open', box).onclick = () => link && (tg?.openTelegramLink ? tg.openTelegramLink(link) : openLink(link));
     $('#tg-copy', box).onclick = () => link && copy(link);
   };
-  const handle = res => {
-    if (res.status === 'displayed') return done(res);
-    if (res.link) link = res.link;
-    if (!$('#tg-msg', box)) waitingUi(res.status); else $('#tg-msg', box).textContent = t(res.status === 'consumed' ? 'tgc.consumed' : res.status === 'refresh' ? 'tgc.refresh' : 'tgc.waiting');
+  const wrongUi = account => {
+    stop();
+    box.innerHTML = `<div class="tg-wrong mt"><b>⚠️ ${esc(t('tgc.wrong_title'))}</b><p>${esc(t('tgc.wrong_text', { account }))}</p>
+      <button class="btn mt" id="tg-reset">${esc(t('tgc.wrong_reset'))}</button>
+      <button class="btn secondary mt" id="tg-use">${esc(t('tgc.wrong_use'))}</button></div>`;
+    const choose = async (use, btn) => {
+      btn.disabled = true;
+      try { handle(await api.tgAccount(o.id, use)); if (!use) poll(); }
+      catch (err) { toast(errText(err), true); btn.disabled = false; }
+    };
+    $('#tg-reset', box).onclick = e => choose(false, e.target);
+    $('#tg-use', box).onclick = e => choose(true, e.target);
   };
+  const handle = res => {
+    if (res.status === 'displayed') return done();
+    if (res.status === 'wrong_account') return wrongUi(res.account || '');
+    if (res.link) link = res.link;
+    if (!$('#tg-msg', box)) waitingUi(res.status); else $('#tg-msg', box).textContent = msgFor(res.status);
+  };
+  const check = async () => {
+    if (busy) return;
+    busy = true;
+    try { handle(await api.tgStatus(o.id)); }
+    catch (err) { stop(); toast(errText(err), true); render(); }
+    busy = false;
+  };
+  const poll = () => {
+    started = Date.now();
+    if (timer) return;
+    timer = setInterval(() => {
+      if (document.hidden) return;
+      if (Date.now() - started > 15 * 60 * 1000) { stop(); toast(t('tgc.timeout'), true); render(); return; }
+      check();
+    }, 2500);
+    state.timers.push(timer);
+  };
+  // Android: Telegram minimizes/closes the Mini App while the login is confirmed — check at once on return.
+  if (tgOnVisible) document.removeEventListener('visibilitychange', tgOnVisible);
+  tgOnVisible = () => { if (!document.hidden && timer && $('#tg-box')) check(); };
+  document.addEventListener('visibilitychange', tgOnVisible);
   $('#tg-start', box).onclick = async e => {
     e.target.disabled = true;
     try {
       const res = await api.tgConnect(o.id);
       handle(res);
-      if (res.status === 'displayed') return;
+      if (res.status === 'displayed' || res.status === 'wrong_account') return;
       if (link) (tg?.openTelegramLink ? tg.openTelegramLink(link) : openLink(link));
-      started = Date.now();
-      timer = setInterval(async () => {
-        if (document.hidden || busy) return;
-        if (Date.now() - started > 15 * 60 * 1000) { stop(); toast(t('tgc.timeout'), true); render(); return; }
-        busy = true;
-        try { handle(await api.tgStatus(o.id)); } catch (err) { stop(); toast(errText(err), true); render(); }
-        busy = false;
-      }, 2500);
-      state.timers.push(timer);
+      poll();
     } catch (err) { toast(errText(err), true); e.target.disabled = false; }
   };
+  // reopened after confirming elsewhere (or app was closed): resume watching instead of asking to tap again
+  if (o.tg_waiting && o.status === 'awaiting_link') { waitingUi('consumed'); poll(); check(); }
+  if (o.tg_error === 'wrong_account') wrongUi(state.me?.user?.tg_display_name || '');
 }
 
 async function orderView(view, id) {
@@ -916,13 +1085,13 @@ async function orderView(view, id) {
   const head = `<div class="card"><div class="order-head"><div class="thumb">${isGift ? giftImage(o.image, o.nft_name) : nameTile({ name: o.nft_name, category: o.category })}</div>
       <div><h3>${esc(o.nft_name)}</h3>${o.kind === 'extend' ? `<div class="sub muted" style="margin:-2px 0 6px;font-size:13px">${esc(t('ext.of', { id: o.parent_id }))}</div>` : ''}${statusBadge(o.status)}</div></div>${stepsHtml(o.status, o.kind)}
       <div class="kv mt" style="padding-bottom:4px"><span>${esc(t('order.period'))}</span><b>${o.days} ${esc(t('common.days'))}</b></div></div>
-      <div class="mt">${breakdown(o.per_day_uzs, o.days, o.service_fee_uzs || 0, o.amount_uzs, o.unique_add_uzs || 0)}</div>`;
+      <div class="mt">${breakdown(o.per_day_uzs, o.days, o.service_fee_uzs || 0, o.amount_uzs, o.unique_add_uzs || 0, o.discount_uzs || 0)}</div>`;
   let body = '';
   switch (o.status) {
     case 'awaiting_payment': body = paymentCard(o); break;
     case 'payment_review': body = waiting(t('review.text')); break;
     case 'paid': case 'renting': body = waiting(t('renting.text')); break;
-    case 'awaiting_link': body = isGift ? tgCard(o) + `<details class="alt-way mt"><summary>${esc(t('tgc.alt_title'))}</summary>${linkCard(o)}</details>`
+    case 'awaiting_link': body = isGift ? tgCard(o) + method2(o)
       : `<p class="note">${esc(t('uname.text'))}</p>` + linkCard(o); break;
     case 'connecting': case 'connect_signing': body = waiting(t('connecting.text')); break;
     case 'active': body = `<div class="card"><h3 style="margin:0 0 8px">${esc(t('active.title'))}</h3>
@@ -931,10 +1100,11 @@ async function orderView(view, id) {
         <p class="note">${esc(t('active.hint'))}</p>
         <button class="btn green mt" id="extend-btn">${esc(t('ext.btn'))}</button>
         </div>` + (o.category === 'number' ? `<div class="mt">${numberCard(o)}</div>`
-          : isGift ? `<div class="mt">${tgCard(o, true)}</div><details class="alt-way mt"><summary>${esc(t('tgc.alt_title'))}</summary>${linkCard(o, true)}</details>`
+          : isGift ? `<div class="mt">${tgCard(o, true)}</div>${method2(o, true)}`
           : `<details class="alt-way mt"><summary>${esc(t('active.relink'))}</summary>${linkCard(o, true)}</details>`); break;
     default: body = `<div class="card center"><p style="margin:0;line-height:1.5">${esc(t(`final.${o.status}`))}</p>
         ${o.kind === 'extend' && o.parent_id ? `<button class="btn mt" id="open-parent">${esc(t('notify.open'))} #${o.parent_id}</button>` : ''}
+        ${o.kind !== 'extend' && ['expired', 'cancelled', 'refunded', 'failed'].includes(o.status) ? `<button class="btn mt" id="rerent">${icons.repeat.replace('<svg', '<svg width="18" height="18"')} ${esc(t('x.rerent'))}</button>` : ''}
         <button class="btn secondary mt" id="browse">${esc(t('rentals.browse'))}</button></div>`;
   }
   view.innerHTML = head + `<div class="mt">${body}</div>`;
@@ -959,6 +1129,7 @@ function bindOrder(view, o) {
   view.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copy(b.dataset.copy));
   $('#browse', view)?.addEventListener('click', () => switchTab('catalog'));
   $('#open-parent', view)?.addEventListener('click', () => openOrder(o.parent_id));
+  $('#rerent', view)?.addEventListener('click', e => rerent(o, e.currentTarget));
   $('#extend-btn', view)?.addEventListener('click', () => extendSheet(o));
   $('#go-topup', view)?.addEventListener('click', () => openView('balance'));
   $('#pay-balance', view)?.addEventListener('click', async e => {
@@ -1221,6 +1392,8 @@ function profileView(view) {
     </div>
     <div class="section-title">${esc(t('pf.settings'))}</div>
     <div class="menu">
+      ${row('favorites', 'heart', 'red', t('x.favorites'), String((state.me?.favorites || []).length || ''))}
+      ${row('notices', 'bell', 'blue', t('x.bell'), state.me?.unread ? String(state.me.unread) : '')}
       ${row('topup', 'card', 'green', t('profile.topup'))}
       ${row('guide', 'book', 'blue', t('profile.guide'))}
       ${row('lang', 'globe', 'blue', t('profile.lang'), t('lang.name'))}
@@ -1234,6 +1407,7 @@ function profileView(view) {
     lang: langSheet, support: () => openTg(app.support), channel: () => openTg(app.channel),
     rentals: () => switchTab('rentals'), activity: () => switchTab('activity'),
     offer: () => openLink(app.offer_url), balance: () => openView('balance'), topup: () => openView('balance'),
+    favorites: () => openView('favorites'), notices: () => openView('notices'),
     referral: () => openView('referral'), top: () => openView('top'), guide: () => openView('guide'),
     premium: () => { state.starsSeg = 'premium'; state.category = 'stars'; switchTab('catalog'); },
     admin: () => (app.admin_panel_url ? openLink(app.admin_panel_url) : switchTab('admin')),

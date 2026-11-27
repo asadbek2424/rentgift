@@ -315,6 +315,12 @@ class MarketappClient:
 
 
 # ---------------------------------------------------------------------------- listing cache
+def _demo_tg_id(customer_id: str) -> int:
+    """Demo: the confirmed Telegram account is the customer himself ("tg42" → 42)."""
+    digits = "".join(ch for ch in str(customer_id) if ch.isdigit())
+    return int(digits) if digits else 1
+
+
 def remember_listings(store: dict, items: list, collection_address: str | None, category: str = "gift") -> None:
     now = time.monotonic()
     if len(store) > 20000:
@@ -392,14 +398,14 @@ class DemoMarketapp:
 
     async def tg_connect(self, customer_id: str) -> dict:
         if self.tg.get(customer_id, 0) >= 2:
-            return {"status": "ready", "telegram": {"id": 1, "name": "Demo User", "username": "demo"}}
+            return {"status": "ready", "telegram": {"id": _demo_tg_id(customer_id), "name": "Demo User", "username": "demo"}}
         self.tg[customer_id] = 0
         return {"status": "waiting", "link": "https://t.me/oauth?demo=1"}
 
     async def tg_status(self, customer_id: str) -> dict:
         self.tg[customer_id] = self.tg.get(customer_id, 0) + 1
         if self.tg[customer_id] >= 2:
-            return {"status": "confirmed", "telegram": {"id": 1, "name": "Demo User", "username": "demo"}}
+            return {"status": "confirmed", "telegram": {"id": _demo_tg_id(customer_id), "name": "Demo User", "username": "demo"}}
         return {"status": "consumed"}
 
     async def tg_disconnect(self, customer_id: str) -> dict:

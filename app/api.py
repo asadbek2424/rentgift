@@ -23,7 +23,7 @@ from .context import get_context
 from .db import Order, OrderStatus as S, Session, User, get_setting, set_setting
 from .i18n import LANGS, guess_lang
 from .marketapp import MarketappError
-from .pricing import (RateUnavailable, collection_images, floor_nano, gift_card, pricing_config, split_name,
+from .pricing import (RateUnavailable, collection_images, floor_nano, gift_card, image_url, pricing_config, split_name,
                       uzs_for_nano, uzs_to_base_nano)
 from .ton import ton_text
 from .tg_auth import InitDataError, validate_init_data
@@ -40,6 +40,7 @@ class CurrentUser(BaseModel):
     id: int
     lang: str
     is_admin: bool
+    role: str = ""            # owner | operator (panel sessions)
     first_name: str = ""
     last_name: str = ""
     username: str = ""
@@ -88,13 +89,21 @@ async def admin_user(x_telegram_init_data: str = Header(default=""),
         async with Session() as session:
             db_user = await session.get(User, admin_id)
         return CurrentUser(id=admin_id, lang=(db_user.lang if db_user and db_user.lang else settings.default_lang),
-                           is_admin=True, first_name=db_user.first_name if db_user else "Admin",
+                           is_admin=True, role=settings.role_of(admin_id), first_name=db_user.first_name if db_user else "Admin",
                            last_name=db_user.last_name if db_user else "", username=db_user.username if db_user else "",
                            photo_url=db_user.photo_url if db_user else "")
     user = await current_user(None, x_telegram_init_data)
     if not user.is_admin:
         raise HTTPException(403, detail={"code": "auth"})
+    user.role = "owner"
     return user
+
+
+async def owner_user(admin: CurrentUser = Depends(admin_user)) -> CurrentUser:
+    """Owner-only: money, prices, settings, channels, promo codes, broadcasts, balances."""
+    if admin.role != "owner":
+        raise HTTPException(403, detail={"code": "owner_only", "error": "Bu bo'lim faqat egasi (owner) uchun"})
+    return admin
 
 
 # ---------------------------------------------------------------------------- admin panel login
@@ -195,7 +204,10 @@ async def me(user: CurrentUser = Depends(current_user)):
     from . import channel_promo, subscription
     need = await subscription.missing(user.id)
     promo = await channel_promo.info(user.id) if not need else None
-    return {"subscribe": need, "channel_promo": promo, "user": {**user.model_dump(), "tg_display_ready": bool(db_user and db_user.tg_display_ready),
+    from . import extras
+    unread = await extras.unread_count(user.id)
+    favs = [f["address"] for f in await extras.favorites(user.id)]
+    return {"subscribe": need, "channel_promo": promo, "unread": unread, "favorites": favs, "user": {**user.model_dump(), "tg_display_ready": bool(db_user and db_user.tg_display_ready),
                      "tg_display_name": db_user.tg_display_name if db_user else "",
                      "balance_uzs": int(db_user.balance_uzs or 0) if db_user else 0,
                      "spent_uzs": int(db_user.spent_uzs or 0) if db_user else 0},
@@ -448,15 +460,100 @@ async def quote(nft: str, days: int, user: CurrentUser = Depends(current_user)):
 class OrderBody(BaseModel):
     nft_address: str = Field(max_length=80)
     days: int = Field(ge=1, le=365)
+    promo: str = Field(default="", max_length=24)
 
 
 @router.post("/orders")
 async def create_order(body: OrderBody, user: CurrentUser = Depends(current_user)):
     try:
-        order = await svc.create_order(get_context(), user.id, body.nft_address, body.days)
+        order = await svc.create_order(get_context(), user.id, body.nft_address, body.days, body.promo)
     except svc.ServiceError as exc:
         raise _error(exc) from None
     return svc.order_view(order)
+
+
+class PromoCheckBody(BaseModel):
+    code: str = Field(max_length=24)
+    nft_address: str = Field(default="", max_length=80)
+    days: int = Field(default=1, ge=1, le=365)
+
+
+@router.post("/promo/check")
+async def promo_check(body: PromoCheckBody, user: CurrentUser = Depends(current_user)):
+    """Validate a promo code and show the discount for this gift/days before the order is created."""
+    from . import extras
+    ctx = get_context()
+    try:
+        promo = await extras.check_promo(body.code, user.id)
+        quote = await svc.quote_for(ctx, body.nft_address, body.days, raw=True) if body.nft_address else None
+    except extras.PromoError as exc:
+        raise _error(svc.ServiceError(exc.code)) from None
+    except svc.ServiceError as exc:
+        raise _error(exc) from None
+    discount = extras.discount_for(promo, quote.amount_uzs, quote.profit_uzs) if quote else 0
+    return {"code": promo.code, "percent": promo.percent, "amount": int(promo.amount_uzs or 0), "discount_uzs": discount,
+            "total_uzs": quote.amount_uzs - discount if quote else None}
+
+
+@router.get("/notices")
+async def notices_list(user: CurrentUser = Depends(current_user)):
+    from . import extras
+    return await extras.notices(user.id)
+
+
+@router.post("/notices/read")
+async def notices_read(user: CurrentUser = Depends(current_user)):
+    from . import extras
+    await extras.mark_read(user.id)
+    return {"ok": True}
+
+
+class FavoriteBody(BaseModel):
+    address: str = Field(max_length=80)
+
+
+@router.get("/favorites")
+async def favorites_list(user: CurrentUser = Depends(current_user)):
+    from . import extras
+    ctx = get_context()
+    try:
+        config = await pricing_config(ctx.rates)
+    except RateUnavailable:
+        config = None
+    items = []
+    for fav in await extras.favorites(user.id):
+        live = ctx.market.cached_listing(fav["address"])
+        item = {"nft_address": fav["address"], "nft_name": fav["name"],
+                "attributes": (live or {}).get("attributes") or [],
+                "price_per_day": str((live or {}).get("price_per_day") or fav["price_per_day"] or 0),
+                "min_duration": int((live or {}).get("min_duration") or 86400),
+                "max_duration": int((live or {}).get("max_duration") or 86400)}
+        card = gift_card(item, config)
+        items.append({**card, "available": bool(live), "liked_price_ton": fav["price_per_day"]})
+    return {"items": items}
+
+
+@router.post("/favorites")
+async def favorites_add(body: FavoriteBody, user: CurrentUser = Depends(current_user)):
+    from . import extras
+    ctx = get_context()
+    try:
+        listing = await svc._listing(ctx, body.address)
+        await extras.add_favorite(user.id, listing["address"], listing["name"],
+                                  image_url(listing["name"]) if listing.get("category", "gift") == "gift" else "",
+                                  listing["price_per_day"])
+    except extras.PromoError as exc:
+        raise _error(svc.ServiceError(exc.code)) from None
+    except svc.ServiceError as exc:
+        raise _error(exc) from None
+    return {"ok": True}
+
+
+@router.delete("/favorites/{address}")
+async def favorites_remove(address: str, user: CurrentUser = Depends(current_user)):
+    from . import extras
+    await extras.remove_favorite(user.id, address)
+    return {"ok": True}
 
 
 @router.get("/orders")
@@ -534,7 +631,7 @@ async def extend(order_id: int, body: ExtendBody, user: CurrentUser = Depends(cu
 
 
 def _tg_result(result: dict) -> dict:
-    out = {"status": result["status"], "link": result.get("link")}
+    out = {"status": result["status"], "link": result.get("link"), "account": result.get("account")}
     if result.get("order") is not None:
         out["order"] = svc.order_view(result["order"])
     return out
@@ -560,6 +657,19 @@ async def tg_status(order_id: int, user: CurrentUser = Depends(current_user)):
 # ---------------------------------------------------------------------------- admin
 def _wallet_error(exc) -> HTTPException:
     return HTTPException(exc.status, detail={"code": exc.code, "detail": exc.detail})
+
+
+class TgAccountBody(BaseModel):
+    use: bool
+
+
+@router.post("/orders/{order_id}/tg-account")
+async def tg_account(order_id: int, body: TgAccountBody, user: CurrentUser = Depends(current_user)):
+    """After a 'different Telegram account' warning: show there anyway (use=true) or reconnect (use=false)."""
+    try:
+        return _tg_result(await svc.tg_account_choice(get_context(), user.id, order_id, body.use))
+    except svc.ServiceError as exc:
+        raise _error(exc) from None
 
 
 @router.post("/orders/{order_id}/pay-balance")
@@ -711,7 +821,7 @@ async def admin_orders(filter: str = "review", admin: CurrentUser = Depends(admi
 
 
 @router.get("/admin/stats")
-async def admin_stats(admin: CurrentUser = Depends(admin_user)):
+async def admin_stats(admin: CurrentUser = Depends(owner_user)):
     ctx = get_context()
     s = ctx.settings
     done = {S.ACTIVE, S.EXPIRED, S.AWAITING_LINK, S.CONNECTING, S.CONNECT_SIGNING, S.RENTING}
@@ -778,7 +888,7 @@ _LIMITS = {"stars_markup_percent": (0, 500), "premium_markup_percent": (0, 500),
 
 
 @router.post("/admin/settings")
-async def admin_settings(body: SettingsBody, admin: CurrentUser = Depends(admin_user)):
+async def admin_settings(body: SettingsBody, admin: CurrentUser = Depends(owner_user)):
     values = body.model_dump(exclude_none=True)
     for key, (low, high) in _LIMITS.items():
         if key in values:
@@ -882,7 +992,7 @@ class BalanceBody(BaseModel):
 
 
 @router.post("/admin/users/{user_id}/balance")
-async def admin_balance(user_id: int, body: BalanceBody, admin: CurrentUser = Depends(admin_user)):
+async def admin_balance(user_id: int, body: BalanceBody, admin: CurrentUser = Depends(owner_user)):
     try:
         return {"balance_uzs": await wallet.admin_adjust(user_id, body.delta, admin.id)}
     except wallet.WalletError as exc:
@@ -890,7 +1000,7 @@ async def admin_balance(user_id: int, body: BalanceBody, admin: CurrentUser = De
 
 
 @router.post("/admin/orders/{order_id}/prepare-tx")
-async def prepare_tx(order_id: int, admin: CurrentUser = Depends(admin_user)):
+async def prepare_tx(order_id: int, admin: CurrentUser = Depends(owner_user)):
     ctx = get_context()
     try:
         if ctx.hot_wallet is not None:
@@ -906,7 +1016,7 @@ class SentBody(BaseModel):
 
 
 @router.post("/admin/orders/{order_id}/tx-sent")
-async def tx_sent(order_id: int, body: SentBody, admin: CurrentUser = Depends(admin_user)):
+async def tx_sent(order_id: int, body: SentBody, admin: CurrentUser = Depends(owner_user)):
     try:
         return svc.order_view(await svc.tx_sent(get_context(), order_id, f"admin:{admin.id}", body.boc, body.wallet))
     except svc.ServiceError as exc:
@@ -914,7 +1024,7 @@ async def tx_sent(order_id: int, body: SentBody, admin: CurrentUser = Depends(ad
 
 
 @router.post("/admin/backup")
-async def admin_backup(admin: CurrentUser = Depends(admin_user)):
+async def admin_backup(admin: CurrentUser = Depends(owner_user)):
     from . import backup
     path = await backup.make_backup()
     sent = await backup.send_to_admins(get_context().bot, path)

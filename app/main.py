@@ -69,6 +69,8 @@ async def lifespan(app: FastAPI):
     tasks.append(asyncio.create_task(orders.worker_loop(ctx), name="worker"))
     tasks.append(asyncio.create_task(backup.backup_loop(ctx), name="backup"))
     tasks.append(asyncio.create_task(run_userbot(ctx), name="userbot"))
+    from .monitor import monitor_loop
+    tasks.append(asyncio.create_task(monitor_loop(ctx), name="monitor"))
     try:
         yield
     finally:

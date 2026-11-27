@@ -14,6 +14,9 @@ import Activity from './pages/Activity.jsx';
 import SettingsPage from './pages/Settings.jsx';
 import BotSettings from './pages/BotSettings.jsx';
 import Channels from './pages/Channels.jsx';
+import ConnectIssues from './pages/ConnectIssues.jsx';
+import Promos from './pages/Promos.jsx';
+import Analytics from './pages/Analytics.jsx';
 import Login from './pages/Login.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -33,6 +36,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="settings" element={<SettingsPage />} />
           <Route path="bot-settings" element={<BotSettings />} />
           <Route path="channels" element={<Channels />} />
+          <Route path="connect-issues" element={<ConnectIssues />} />
+          <Route path="promos" element={<Promos />} />
+          <Route path="analytics" element={<Analytics />} />
           <Route path="*" element={<Dashboard />} />
         </Route>
       </Routes>

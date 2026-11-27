@@ -48,7 +48,11 @@ async def admin_home(message: Message) -> None:
     await message.answer(text, reply_markup=markup([admin_button(t(lang, "admin.btn_panel"))]))
 
 
-@router.message(Command("panel"))
+staff_router = Router(name="staff")      # owners AND operators
+staff_router.message.filter(F.from_user.func(lambda u: u.id in get_settings().staff_ids))
+
+
+@staff_router.message(Command("panel"))
 async def panel_link(message: Message) -> None:
     """One-time sign-in link for the standalone admin panel (ADMIN_PANEL_URL, e.g. on Vercel)."""
     from urllib.parse import quote

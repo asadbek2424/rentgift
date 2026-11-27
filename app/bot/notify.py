@@ -10,6 +10,7 @@ from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboar
 
 from ..config import get_settings
 from ..db import Order, Session, User, aware, utcnow
+from ..extras import add_notice
 from ..i18n import t
 from ..ton import ton_text
 from .common import admin_button, fmt_dt, fmt_left, fmt_sum, markup, user_lang, webapp_button
@@ -58,7 +59,9 @@ class BotNotifier:
         lang = await user_lang(user_id)
         values = {k: fmt_sum(v) if k in ("amount", "balance") and isinstance(v, int) else v for k, v in params.items()}
         button = webapp_button(t(lang, "notify.open_app"), tab=tab) if tab else None
-        await self._send(user_id, t(lang, f"wallet.{key}", **values), markup([button]) if button else None)
+        text = t(lang, f"wallet.{key}", **values)
+        await add_notice(user_id, text, tab=tab or "")
+        await self._send(user_id, text, markup([button]) if button else None)
 
     async def admin_topup(self, topup, key: str, **params) -> None:
         async with Session() as session:
@@ -107,6 +110,7 @@ class BotNotifier:
         if key == "expiring":
             rows.insert(0, [webapp_button(t(lang, "ext.btn"), order=order.id, extend=1)])
         keyboard = markup(*rows)
+        await add_notice(order.user_id, text, order_id=target)
         try:
             await self.bot.send_message(order.user_id, text, reply_markup=keyboard)
         except TelegramForbiddenError:

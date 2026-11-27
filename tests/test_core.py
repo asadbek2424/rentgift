@@ -438,7 +438,7 @@ async def _tg_connect_failures():
     market.tg_connect, market.tg_display, market.tg_disconnect = ready, refuse, disconnect
     with pytest.raises(svc.ServiceError) as err:
         await svc.tg_connect(ctx, 11, order.id)
-    assert err.value.code == "display_failed" and disconnected == ["tg11"]
+    assert err.value.code == "login_expired" and disconnected == ["tg11"]
     assert (await svc.get_order(order.id)).status == "awaiting_link"
 
     # an order left in CONNECTING (app restarted mid-display) goes back after a few minutes
@@ -601,3 +601,257 @@ def test_collection_names_singular_plural():
     for gift, collection in pairs:
         assert singular(gift) == singular(collection), (gift, collection)
     assert singular("Kiss") != singular("Kis")          # "ss" endings are not plurals
+
+
+
+def test_tg_connect_resilience():
+    """A one-off unexplained refusal keeps the login (no new link needed); a second one drops it.
+    A 503 is retried quietly. A login confirmed from another account is not displayed without consent."""
+    import asyncio as _a
+    from app import orders as svc
+    from app.config import get_settings
+    from app.context import AppContext, NullNotifier
+    from app.db import init_db
+    from app.marketapp import DemoMarketapp, MarketappError
+    from app.pricing import RateProvider
+
+    async def run():
+        await init_db()
+        market = DemoMarketapp()
+        ctx = AppContext(settings=get_settings(), market=market, rates=RateProvider(), notifier=NullNotifier())
+        await svc.upsert_user(12, "Retry")
+        order = await svc.create_order(ctx, 12, market.items[6]["nft_address"], 3)
+        await svc.attach_receipt(ctx, 12, order.id, file_id="f")
+        await svc.confirm_payment(ctx, order.id, 1)
+        await svc.prepare_tx(ctx, order.id)
+        await svc.tx_sent(ctx, order.id, "admin:1", "boc", None)
+        await svc.worker_tick(ctx)
+        dropped, calls = [], {"n": 0}
+
+        async def ready(customer_id):
+            return {"status": "ready", "telegram": {"id": 12, "name": "Me"}}
+
+        async def drop(customer_id):
+            dropped.append(customer_id)
+            return {}
+
+        async def odd(nft, customer_id):
+            raise MarketappError("Marketapp HTTP 400", 400, {"detail": "something odd"})
+        market.tg_connect, market.tg_display, market.tg_disconnect = ready, odd, drop
+        for expected_drops in (0, 1):
+            with pytest.raises(svc.ServiceError) as err:
+                await svc.tg_connect(ctx, 12, order.id)
+            assert err.value.code == "display_failed" and len(dropped) == expected_drops
+
+        async def flaky(nft, customer_id):                 # 503 once, then fine
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise MarketappError("Marketapp HTTP 503", 503, None)
+            return {"displayed": "Me"}
+        market.tg_display = flaky
+        assert (await svc.tg_connect(ctx, 12, order.id))["status"] == "displayed" and calls["n"] == 2
+
+        async def other(customer_id):                      # confirmed from someone else's account
+            return {"status": "ready", "telegram": {"id": 999, "name": "Stranger"}}
+        market.tg_connect = other
+        result = await svc.tg_connect(ctx, 12, order.id)
+        assert result == {"status": "wrong_account", "account": "Stranger"}
+        market.tg_display = DemoMarketapp.tg_display.__get__(market)
+        assert (await svc.tg_account_choice(ctx, 12, order.id, use_it=True))["status"] == "displayed"
+    _a.run(run())
+
+
+def test_server_finishes_tg_login_when_app_is_closed():
+    """Android: the Mini App is closed while the customer confirms in Telegram. The worker must finish the job,
+    and customers who never connect get one reminder."""
+    import asyncio as _a
+    from datetime import timedelta as _td
+    from sqlalchemy import update as _update
+    from app import orders as svc
+    from app.config import get_settings
+    from app.context import AppContext, NullNotifier
+    from app.db import Order, Session, init_db, utcnow
+    from app.marketapp import DemoMarketapp
+    from app.pricing import RateProvider
+
+    class Recorder(NullNotifier):
+        def __init__(self):
+            self.sent = []
+
+        async def user(self, order, key, **params):
+            self.sent.append((order.id, key))
+
+    async def rented(ctx, market, uid, idx):
+        await svc.upsert_user(uid, "A")
+        order = await svc.create_order(ctx, uid, market.items[idx]["nft_address"], 3)
+        await svc.attach_receipt(ctx, uid, order.id, file_id="f")
+        await svc.confirm_payment(ctx, order.id, 1)
+        await svc.prepare_tx(ctx, order.id)
+        await svc.tx_sent(ctx, order.id, "admin:1", "boc", None)
+        await svc.worker_tick(ctx)
+        return order
+
+    async def run():
+        await init_db()
+        market = DemoMarketapp()
+        rec = Recorder()
+        ctx = AppContext(settings=get_settings(), market=market, rates=RateProvider(), notifier=rec)
+        a = await rented(ctx, market, 21, 7)
+        b = await rented(ctx, market, 22, 8)
+        assert (await svc.tg_connect(ctx, 21, a.id))["status"] == "waiting"      # app opens the link and dies
+        market.tg[svc.customer_id(21)] = 5                                       # customer confirms in Telegram
+        await svc.worker_tick(ctx)
+        assert (await svc.get_order(a.id)).status == "active" and (a.id, "displayed") in rec.sent
+        async with Session() as session:                                          # b never connected for 20 min
+            await session.execute(_update(Order).where(Order.id == b.id).values(rented_at=utcnow() - _td(minutes=20)))
+            await session.commit()
+        await svc.worker_tick(ctx)
+        await svc.worker_tick(ctx)
+        assert rec.sent.count((b.id, "tg_reminder")) == 1
+    _a.run(run())
+
+
+def test_monitor_low_balance_and_marketapp_alerts():
+    from types import SimpleNamespace
+    from app import monitor
+
+    sent = []
+
+    class Bot:
+        async def send_message(self, chat_id, text):
+            sent.append((chat_id, text))
+
+    class Wallet:
+        nano = 2 * 10**9
+        async def balance_nano(self):
+            return self.nano
+
+    class Market:
+        ok = False
+        async def gift_collections(self):
+            if not self.ok:
+                raise RuntimeError("down")
+            return []
+
+    wallet, market = Wallet(), Market()
+    ctx = SimpleNamespace(bot=Bot(), hot_wallet=wallet, market=market,
+                          settings=SimpleNamespace(admin_ids=[7], min_ton_balance=5.0, admin_wallet_address=""))
+    monitor.state.update(balance_nano=None, low=False, low_alert_at=0.0, market_fail=0, market_down=False)
+
+    async def run():
+        await monitor.check_wallet(ctx)
+        await monitor.check_wallet(ctx)          # still low: no repeat within 6 h
+        assert len(sent) == 1 and "TON kam" in sent[0][1]
+        assert monitor.summary(ctx)["walletLow"] is True
+        wallet.nano = 9 * 10**9
+        await monitor.check_wallet(ctx)
+        assert len(sent) == 2 and monitor.summary(ctx)["walletLow"] is False
+        for _ in range(4):
+            await monitor.check_marketapp(ctx)
+        assert len(sent) == 3 and monitor.summary(ctx)["marketappDown"] is True
+        market.ok = True
+        await monitor.check_marketapp(ctx)
+        assert len(sent) == 4 and not monitor.state["market_down"]
+
+    asyncio.run(run())
+
+
+def test_promo_codes_notices_and_favorites():
+    from app import extras, orders as svc
+    from app.config import get_settings
+    from app.context import AppContext, NullNotifier
+    from app.db import init_db
+    from app.marketapp import DemoMarketapp
+    from app.pricing import RateProvider
+
+    async def run():
+        await init_db()
+        market = DemoMarketapp()
+        ctx = AppContext(settings=get_settings(), market=market, rates=RateProvider(), notifier=NullNotifier())
+        await svc.upsert_user(31, "Promo")
+        await extras.save_promo({"code": "yangi10", "percent": 10, "perUser": 1, "maxUses": 5})
+        gift = market.items[7]["nft_address"]
+        plain = await svc.create_order(ctx, 31, gift, 3)
+        order = await svc.create_order(ctx, 31, market.items[8]["nft_address"], 3, "YANGI10")
+        assert order.promo_code == "YANGI10" and order.discount_uzs > 0
+        assert order.discount_uzs <= order.profit_uzs + order.discount_uzs      # never below cost
+        assert svc.order_view(order)["discount_uzs"] == order.discount_uzs
+        with pytest.raises(svc.ServiceError) as err:                             # once per customer
+            await svc.create_order(ctx, 31, gift, 3, "yangi10")
+        assert err.value.code == "promo_already_used"
+        with pytest.raises(svc.ServiceError):
+            await svc.create_order(ctx, 31, gift, 3, "NOPE")
+        await svc.cancel_by_user(ctx, 31, order.id)                              # a cancelled order frees the use
+        assert (await extras.check_promo("yangi10", 31)).code == "YANGI10"
+        rows = await extras.list_promos()
+        assert rows[0]["code"] == "YANGI10" and rows[0]["used"] == 0
+        # a fixed discount larger than our profit is capped at the profit
+        await extras.save_promo({"code": "BIG", "amount": 10**9, "perUser": 0})
+        big = await svc.create_order(ctx, 31, market.items[9]["nft_address"], 3, "big")
+        assert big.profit_uzs - big.unique_add_uzs == 0 and big.amount_uzs >= big.cost_uzs
+        await svc.cancel_by_user(ctx, 31, plain.id)
+
+        # 🔔 notices
+        await extras.add_notice(31, "<b>Gift</b> tayyor &amp; faol", order_id=order.id)
+        data = await extras.notices(31)
+        assert data["unread"] == 1 and data["items"][0]["text"] == "Gift tayyor & faol"
+        await extras.mark_read(31)
+        assert await extras.unread_count(31) == 0
+
+        # ❤️ favorites + price drop alert (once)
+        listing = await svc._listing(ctx, gift)
+        await extras.add_favorite(31, listing["address"], listing["name"], "", "1000000000")
+        assert [f["address"] for f in await extras.favorites(31)] == [listing["address"]]
+        sent = []
+
+        async def user_text(user_id, key, tab=None, **params):
+            sent.append((user_id, key, params))
+        ctx.notifier.user_text = user_text
+        item = dict(market.cached_listing(gift), price_per_day="900000000")
+        market.cached_listing = lambda a, max_age=1800: item if a == gift or a == listing["address"] else None
+        assert await extras.watch_favorites(ctx, force=True) == 1
+        assert sent[0][1] == "fav_cheaper" and sent[0][2]["percent"] == 10
+        assert await extras.watch_favorites(ctx, force=True) == 0               # no repeat at the same price
+        await extras.remove_favorite(31, listing["address"])
+        assert await extras.favorites(31) == []
+
+    asyncio.run(run())
+
+
+def test_roles_analytics_and_csv_export():
+    from fastapi.testclient import TestClient
+    from app import admin_auth
+    from app.main import create_app
+
+    with TestClient(create_app()) as client:
+        from app.context import get_context
+        s = get_context().settings
+        old_admins, old_ops = list(s.admin_ids), list(s.operator_ids)
+        s.admin_ids, s.operator_ids = [901], [902]
+        try:
+            owner = {"Authorization": "Bearer " + admin_auth.make_token(s, 901)[0]}
+            op = {"Authorization": "Bearer " + admin_auth.make_token(s, 902)[0]}
+            stranger = {"Authorization": "Bearer " + admin_auth.make_token(s, 903)[0]}
+            assert client.get("/api/panel/dashboard", headers=stranger).status_code == 401
+            dash = client.get("/api/panel/dashboard", headers=op).json()
+            assert dash["role"] == "operator" and dash["totalProfit"] == 0
+            assert client.get("/api/panel/dashboard", headers=owner).json()["role"] == "owner"
+            for path in ("/api/panel/config", "/api/panel/promos", "/api/panel/analytics", "/api/panel/export/orders",
+                         "/api/admin/stats", "/api/panel/channels"):
+                assert client.get(path, headers=op).status_code == 403, path
+                assert client.get(path, headers=owner).status_code == 200, path
+            assert client.get("/api/panel/connect-issues", headers=op).status_code == 200
+            assert client.post("/api/panel/promos", headers=op, json={"code": "X123", "percent": 5}).status_code == 403
+            made = client.post("/api/panel/promos", headers=owner, json={"code": "spring", "percent": 15, "perUser": 1})
+            assert made.status_code == 200 and made.json()["code"] == "SPRING"
+            assert client.post("/api/panel/promos", headers=owner, json={"code": "bad", "percent": 5, "amount": 100}).status_code == 400
+            csv = client.get("/api/panel/export/orders?days=30", headers=owner)
+            assert csv.headers["content-type"].startswith("text/csv") and csv.text.startswith("﻿ID;Sana")
+            assert client.get("/api/panel/export/purchases", headers=owner).status_code == 200
+            assert client.get("/api/panel/export/topups", headers=owner).status_code == 200
+            data = client.get("/api/panel/analytics?days=0", headers=owner).json()
+            assert "items" in data and "margin" in data["total"]
+            staff = client.get("/api/panel/staff", headers=op).json()
+            assert {x["role"] for x in staff["items"]} == {"owner", "operator"}
+        finally:
+            s.admin_ids, s.operator_ids = old_admins, old_ops

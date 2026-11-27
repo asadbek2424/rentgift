@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select, update
 
 from . import admin_auth
-from .api import CurrentUser, admin_user
+from .api import CurrentUser, admin_user, owner_user
 from .context import get_context
 from .db import Order, OrderEvent, OrderStatus as S, Purchase, Session, Topup, User
 
@@ -63,7 +63,8 @@ async def _session_for(admin_id: int) -> dict:
     async with Session() as session:
         user = await session.get(User, admin_id)
     return {"session": token, "expires_at": exp, "admin": {"id": admin_id, "name": _name(user) or "Admin",
-                                                              "username": user.username if user else ""}}
+                                                              "username": user.username if user else "",
+                                                              "role": get_context().settings.role_of(admin_id)}}
 
 
 # ---------------------------------------------------------------------------- auth
@@ -95,7 +96,7 @@ async def login(body: LoginBody):
         raise HTTPException(429, detail={"code": "too_many", "error": "Ko'p urinish. 10 daqiqadan keyin qayta urinib ko'ring"})
     if not s.admin_panel_password:
         raise HTTPException(400, detail={"code": "no_password", "error": "ADMIN_PANEL_PASSWORD o'rnatilmagan — Telegram kodi bilan kiring"})
-    if admin_id not in s.admin_ids or not admin_auth.check_password(s, body.password, admin_id):
+    if admin_id not in s.staff_ids or not admin_auth.check_password(s, body.password, admin_id):
         raise _bad()
     return await _session_for(admin_id)
 
@@ -103,7 +104,7 @@ async def login(body: LoginBody):
 @router.post("/request-code")
 async def request_code(body: CodeBody):
     ctx = get_context()
-    if body.admin_id in ctx.settings.admin_ids and ctx.bot is not None:
+    if body.admin_id in ctx.settings.staff_ids and ctx.bot is not None:
         code = admin_auth.new_code(body.admin_id)
         if code is None:
             raise HTTPException(429, detail={"code": "too_many", "error": "Kod yaqinda yuborilgan, biroz kuting"})
@@ -127,7 +128,7 @@ async def auth(body: TokenBody):
             admin_id = int(raw_id)
         except ValueError:
             raise _bad() from None
-        if admin_id in get_context().settings.admin_ids and admin_auth.verify_code(admin_id, code):
+        if admin_id in get_context().settings.staff_ids and admin_auth.verify_code(admin_id, code):
             return await _session_for(admin_id)
     raise _bad()
 
@@ -200,8 +201,14 @@ async def dashboard(admin: CurrentUser = Depends(admin_user)):
     for name, count in by_coll:
         coll = (name or "").rpartition(" #")[0] or name
         collections[coll] = collections.get(coll, 0) + int(count)
-    from . import userbot
+    from . import monitor, userbot
+    if admin.role == "operator":                  # operators work with orders, not with money
+        month_profit = prev_profit = total_profit = 0
+        for point in chart.values():
+            point["profit"] = 0
     return {
+        "role": admin.role or "owner",
+        "health": monitor.summary(ctx),
         "monthRevenue": int(month_rev) + int(purchases_month), "prevRevenue": int(prev_rev),
         "monthProfit": int(month_profit), "prevProfit": int(prev_profit),
         "totalRevenue": int(total_rev), "totalProfit": int(total_profit),
@@ -210,6 +217,7 @@ async def dashboard(admin: CurrentUser = Depends(admin_user)):
         "review": status_counts.get(S.PAYMENT_REVIEW, 0), "toRent": status_counts.get(S.PAID, 0),
         "toSign": status_counts.get(S.CONNECT_SIGNING, 0) + status_counts.get(S.RENTING, 0),
         "problems": status_counts.get(S.FAILED, 0), "openTopups": open_topups, "openPurchases": open_purchases,
+        "connectIssues": status_counts.get(S.AWAITING_LINK, 0),
         "activity": list(chart.values()),
         "byCategory": [{"name": c or "gift", "value": int(n)} for c, n in by_cat],
         "byCollection": sorted(({"name": k, "value": v} for k, v in collections.items()), key=lambda x: -x["value"]),
@@ -313,14 +321,14 @@ class BroadcastBody(BaseModel):
 
 
 @router.get("/broadcast")
-async def broadcast_info(admin: CurrentUser = Depends(admin_user)):
+async def broadcast_info(admin: CurrentUser = Depends(owner_user)):
     from .bot.broadcast import audience
     counts = {seg: len(await audience(seg)) for seg in ("all", "customers", "active")}
     return {"counts": counts, "status": _broadcast, "botReady": get_context().bot is not None}
 
 
 @router.post("/broadcast")
-async def broadcast_send(body: BroadcastBody, admin: CurrentUser = Depends(admin_user)):
+async def broadcast_send(body: BroadcastBody, admin: CurrentUser = Depends(owner_user)):
     ctx = get_context()
     if ctx.bot is None:
         raise HTTPException(400, detail={"code": "generic", "error": "Bot ishlamayapti (BOT_TOKEN yoki RUN_BOT)"})
@@ -420,13 +428,13 @@ async def _system_status() -> list[dict]:
 
 
 @router.get("/config")
-async def config_get(admin: CurrentUser = Depends(admin_user)):
+async def config_get(admin: CurrentUser = Depends(owner_user)):
     from . import runtime_config
     return {**await runtime_config.describe(), "status": await _system_status()}
 
 
 @router.post("/config")
-async def config_save(body: ConfigBody, admin: CurrentUser = Depends(admin_user)):
+async def config_save(body: ConfigBody, admin: CurrentUser = Depends(owner_user)):
     from . import runtime_config
     try:
         changed = await runtime_config.save(body.values, admin.id)
@@ -437,7 +445,7 @@ async def config_save(body: ConfigBody, admin: CurrentUser = Depends(admin_user)
 
 
 @router.post("/config/reset")
-async def config_reset(body: ResetBody, admin: CurrentUser = Depends(admin_user)):
+async def config_reset(body: ResetBody, admin: CurrentUser = Depends(owner_user)):
     from . import runtime_config
     try:
         await runtime_config.reset(body.key, admin.id)
@@ -473,14 +481,14 @@ class ToggleBody(BaseModel):
 
 
 @router.get("/channels")
-async def channels_list(admin: CurrentUser = Depends(admin_user)):
+async def channels_list(admin: CurrentUser = Depends(owner_user)):
     from . import subscription
     ctx = get_context()
     return {"channels": await subscription.describe(), "botReady": ctx.bot is not None, "botUsername": ctx.bot_username}
 
 
 @router.post("/channels")
-async def channels_add(body: ChannelBody, admin: CurrentUser = Depends(admin_user)):
+async def channels_add(body: ChannelBody, admin: CurrentUser = Depends(owner_user)):
     from . import subscription
     try:
         channel = await subscription.add(body.input, body.invite_link)
@@ -491,7 +499,7 @@ async def channels_add(body: ChannelBody, admin: CurrentUser = Depends(admin_use
 
 
 @router.delete("/channels/{chat_id}")
-async def channels_remove(chat_id: int, admin: CurrentUser = Depends(admin_user)):
+async def channels_remove(chat_id: int, admin: CurrentUser = Depends(owner_user)):
     from . import subscription
     await subscription.remove(chat_id)
     log.info("Admin %s removed mandatory channel %s", admin.id, chat_id)
@@ -499,7 +507,208 @@ async def channels_remove(chat_id: int, admin: CurrentUser = Depends(admin_user)
 
 
 @router.post("/channels/{chat_id}/toggle")
-async def channels_toggle(chat_id: int, body: ToggleBody, admin: CurrentUser = Depends(admin_user)):
+async def channels_toggle(chat_id: int, body: ToggleBody, admin: CurrentUser = Depends(owner_user)):
     from . import subscription
     await subscription.toggle(chat_id, body.enabled)
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------- «Ulash muammolari»
+@router.get("/connect-issues")
+async def connect_issues(admin: CurrentUser = Depends(admin_user)):
+    """Paid and rented gifts that are still not on the customer's profile (oldest first), with the last problem."""
+    now = datetime.now(timezone.utc)
+    async with Session() as session:
+        rows = (await session.execute(select(Order, User).join(User, User.id == Order.user_id)
+                                      .where(Order.status.in_({S.AWAITING_LINK, S.CONNECTING}), Order.category == "gift")
+                                      .order_by(Order.id.asc()).limit(200))).all()
+        notes = {}
+        ids = [o.id for o, _ in rows]
+        if ids:
+            for e in (await session.execute(select(OrderEvent).where(OrderEvent.order_id.in_(ids), OrderEvent.note != "")
+                                            .order_by(OrderEvent.id.asc()))).scalars():
+                notes[e.order_id] = e.note
+    items = []
+    for o, u in rows:
+        since = o.rented_at or o.updated_at
+        if since is not None and since.tzinfo is None:
+            since = since.replace(tzinfo=timezone.utc)
+        items.append({"id": o.id, "gift": o.nft_name, "status": o.status, "userId": u.id, "name": _name(u), "username": u.username,
+                      "minutes": int((now - since).total_seconds() // 60) if since else None, "attempts": o.connect_attempts or 0,
+                      "error": o.tg_error or "", "waiting": bool(o.tg_wait_started), "reminded": bool(o.tg_reminded),
+                      "tgReady": bool(u.tg_display_ready), "lastNote": (notes.get(o.id) or "")[:200]})
+    return {"items": items}
+
+
+@router.post("/orders/{order_id}/tg-retry")
+async def connect_retry(order_id: int, admin: CurrentUser = Depends(admin_user)):
+    """Show the gift again on the customer's already-connected Telegram (works when their login is still valid)."""
+    from . import orders as svc
+    ctx = get_context()
+    try:
+        await svc.display_gift(ctx, order_id, f"admin:{admin.id}")
+    except svc.ServiceError as exc:
+        texts = {"display_limit": "Fragment cheklovi (soatiga 3 marta) — 20 daqiqadan keyin urining",
+                 "login_expired": "Mijozning Telegram kirishi eskirgan — u «Telegramni ulash»ni qayta bosishi kerak",
+                 "display_failed": "Telegram/Fragment rad etdi — mijoz qayta ulashi yoki 2-usuldan foydalanishi kerak",
+                 "marketapp": "Marketapp javob bermadi — keyinroq urining", "bad_state": "Buyurtma holati o'zgargan"}
+        raise HTTPException(400, detail={"code": exc.code, "error": texts.get(exc.code, exc.code)}) from None
+    return {"ok": True}
+
+
+@router.post("/orders/{order_id}/tg-remind")
+async def connect_remind(order_id: int, admin: CurrentUser = Depends(admin_user)):
+    from . import orders as svc
+    ctx = get_context()
+    order = await svc.get_order(order_id)
+    if ctx.bot is None:
+        raise HTTPException(400, detail={"code": "generic", "error": "Bot ishlamayapti"})
+    await ctx.notifier.user(order, "tg_reminder")
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------- promo codes (owner)
+class PromoBody(BaseModel):
+    code: str = Field(min_length=3, max_length=24)
+    percent: int = Field(default=0, ge=0, le=90)
+    amount: int = Field(default=0, ge=0, le=100_000_000)
+    maxUses: int = Field(default=0, ge=0, le=1_000_000)
+    perUser: int = Field(default=1, ge=0, le=1000)
+    category: str = Field(default="", max_length=10)
+    active: bool = True
+    note: str = Field(default="", max_length=200)
+    expiresAt: str | None = None
+
+
+def _promo_error(exc) -> HTTPException:
+    text = {"promo_bad_code": "Kod 3–24 ta lotin harf/raqam bo'lishi kerak (A-Z, 0-9, _ -)",
+            "promo_bad_value": "Yoki foiz (1–90), yoki so'm miqdor kiriting — bittasini"}.get(exc.code, exc.code)
+    return HTTPException(400, detail={"code": exc.code, "error": text})
+
+
+@router.get("/promos")
+async def promos_list(admin: CurrentUser = Depends(owner_user)):
+    from . import extras
+    return {"items": await extras.list_promos()}
+
+
+@router.post("/promos")
+async def promos_save(body: PromoBody, admin: CurrentUser = Depends(owner_user)):
+    from . import extras
+    try:
+        return await extras.save_promo(body.model_dump())
+    except extras.PromoError as exc:
+        raise _promo_error(exc) from None
+    except ValueError:
+        raise HTTPException(400, detail={"code": "bad_date", "error": "Sana noto'g'ri"}) from None
+
+
+@router.delete("/promos/{code}")
+async def promos_delete(code: str, admin: CurrentUser = Depends(owner_user)):
+    from . import extras
+    await extras.delete_promo(code)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------- profit by collection (owner)
+@router.get("/analytics")
+async def analytics(days: int = 30, admin: CurrentUser = Depends(owner_user)):
+    """Revenue, cost, profit and rentals per gift collection (and per username / number category)."""
+    since = datetime.now(timezone.utc) - timedelta(days=days) if days > 0 else None
+    async with Session() as session:
+        stmt = select(Order.category, Order.nft_name, Order.days, Order.amount_uzs, Order.cost_uzs, Order.profit_uzs,
+                      Order.discount_uzs, Order.kind).where(Order.status.in_(DONE))
+        if since:
+            stmt = stmt.where(Order.created_at >= since)
+        rows = (await session.execute(stmt)).all()
+    groups: dict[tuple[str, str], dict] = {}
+    for category, name, n_days, amount, cost, profit, discount, kind in rows:
+        category = category or "gift"
+        key = (category, ((name or "").rpartition(" #")[0] or name or "—") if category == "gift" else category)
+        g = groups.setdefault(key, {"category": category, "name": key[1], "orders": 0, "extensions": 0, "days": 0,
+                                    "revenue": 0, "cost": 0, "profit": 0, "discount": 0})
+        g["orders" if kind != "extend" else "extensions"] += 1
+        g["days"] += int(n_days or 0)
+        g["revenue"] += int(amount or 0)
+        g["cost"] += int(cost or 0)
+        g["profit"] += int(profit or 0)
+        g["discount"] += int(discount or 0)
+    items = sorted(groups.values(), key=lambda g: -g["profit"])
+    for g in items:
+        g["margin"] = round(g["profit"] * 100 / g["revenue"], 1) if g["revenue"] else 0
+        g["perDayProfit"] = g["profit"] // g["days"] if g["days"] else 0
+    total = {k: sum(g[k] for g in items) for k in ("orders", "extensions", "days", "revenue", "cost", "profit", "discount")}
+    total["margin"] = round(total["profit"] * 100 / total["revenue"], 1) if total["revenue"] else 0
+    return {"days": days, "items": items, "total": total}
+
+
+# ---------------------------------------------------------------------------- CSV export (owner)
+def _csv(rows: list[list]) -> str:
+    import csv
+    import io
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter=";")          # ";" opens correctly in Excel with a Russian/Uzbek locale
+    for row in rows:
+        writer.writerow(["" if v is None else v for v in row])
+    return "\ufeff" + buf.getvalue()                   # BOM: Excel shows Cyrillic/Uzbek letters correctly
+
+
+def _iso(value: datetime | None) -> str:
+    if value is None:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone(timedelta(hours=5))).strftime("%Y-%m-%d %H:%M")   # Tashkent time
+
+
+@router.get("/export/{kind}")
+async def export_csv(kind: str, days: int = 0, admin: CurrentUser = Depends(owner_user)):
+    from fastapi.responses import Response
+    since = datetime.now(timezone.utc) - timedelta(days=days) if days > 0 else None
+    async with Session() as session:
+        if kind == "orders":
+            stmt = select(Order, User).join(User, User.id == Order.user_id).order_by(Order.id)
+            if since:
+                stmt = stmt.where(Order.created_at >= since)
+            data = (await session.execute(stmt)).all()
+            rows = [["ID", "Sana", "Holat", "Turi", "Kategoriya", "Gift", "Kun", "Summa (so'm)", "Xizmat haqi", "Chegirma",
+                     "Promo", "Tannarx (so'm)", "Foyda (so'm)", "TON", "Kurs", "To'lov", "Mijoz ID", "Mijoz", "Username"]]
+            for o, u in data:
+                rows.append([o.id, _iso(o.created_at), o.status, o.kind, o.category, o.nft_name, o.days, o.amount_uzs,
+                             o.service_fee_uzs, o.discount_uzs, o.promo_code, o.cost_uzs, o.profit_uzs,
+                             o.actual_cost_nano and str(int(o.actual_cost_nano) / 1e9) or str(int(o.cost_nano or 0) / 1e9),
+                             o.rate_uzs_per_ton, o.paid_by, u.id, _name(u), u.username])
+        elif kind == "topups":
+            stmt = select(Topup, User).join(User, User.id == Topup.user_id).order_by(Topup.id)
+            if since:
+                stmt = stmt.where(Topup.created_at >= since)
+            data = (await session.execute(stmt)).all()
+            rows = [["ID", "Sana", "Holat", "Summa (so'm)", "To'langan", "Kim tasdiqladi", "Mijoz ID", "Mijoz", "Username"]]
+            for t_, u in data:
+                rows.append([t_.id, _iso(t_.created_at), t_.status, t_.amount_uzs, _iso(t_.paid_at), t_.actor, u.id, _name(u), u.username])
+        elif kind == "purchases":
+            stmt = select(Purchase, User).join(User, User.id == Purchase.user_id).order_by(Purchase.id)
+            if since:
+                stmt = stmt.where(Purchase.created_at >= since)
+            data = (await session.execute(stmt)).all()
+            rows = [["ID", "Sana", "Holat", "Turi", "Miqdor", "Qabul qiluvchi", "Narx (so'm)", "TON", "Kurs", "Xato",
+                     "Mijoz ID", "Mijoz"]]
+            for p_, u in data:
+                rows.append([p_.id, _iso(p_.created_at), p_.status, p_.kind, p_.quantity, "@" + p_.recipient, p_.price_uzs,
+                             str(int(p_.cost_nano or 0) / 1e9), p_.rate_uzs_per_ton, p_.error, u.id, _name(u)])
+        else:
+            raise HTTPException(404, detail={"code": "not_found"})
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
+    return Response(_csv(rows), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{kind}-{stamp}.csv"'})
+
+
+# ---------------------------------------------------------------------------- staff (who has access)
+@router.get("/staff")
+async def staff(admin: CurrentUser = Depends(admin_user)):
+    s = get_context().settings
+    async with Session() as session:
+        people = {u.id: u for u in (await session.execute(select(User).where(User.id.in_(s.staff_ids)))).scalars()}
+    return {"me": {"id": admin.id, "role": admin.role or "owner"},
+            "items": [{"id": i, "role": s.role_of(i), "name": _name(people.get(i)) or str(i),
+                       "username": people[i].username if i in people else ""} for i in s.staff_ids]}

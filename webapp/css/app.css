@@ -1120,3 +1120,52 @@ body.scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overflow: 
 .opt-thumb.letter { font-weight: 800; color: #9fb3cf; background: var(--card-2); }
 .opt-perc { flex: none; font-style: normal; padding: 3px 8px; border-radius: 8px; background: rgba(43, 140, 255, .16); color: #6db6ff; font-size: 12.5px; font-weight: 800; }
 .opt-count { flex: none; min-width: 34px; text-align: right; color: var(--muted); font-size: 12px; }
+
+/* ---- Telegram connect: steps, picture of the confirm message, method 2, wrong-account choice ---- */
+.tg-steps { list-style: none; margin: 12px 0 10px; padding: 0; display: grid; gap: 10px; }
+.tg-steps li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.45; }
+.tg-steps i { flex: none; width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; font-style: normal; font-weight: 800;
+  font-size: 12.5px; background: var(--accent); color: #fff; }
+.tg-art { display: block; width: 100%; height: auto; margin: 4px 0 0; border-radius: 16px; }
+.tg-where { margin-top: 8px !important; font-size: 12.5px !important; }
+.tg-auto { font-size: 12.5px !important; color: #9cc9ff !important; }
+.method2 { border: 1px dashed rgba(255, 255, 255, .12); }
+.m2-head { display: flex; align-items: center; gap: 8px; }
+.m2-badge { width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; background: var(--card-3); font-weight: 800; font-size: 12.5px; }
+.method2 details.alt-way { margin-top: 10px; background: var(--card-2); }
+.tg-wrong { padding: 14px; border-radius: 14px; background: rgba(255, 176, 32, .10); border: 1px solid rgba(255, 176, 32, .35); }
+.tg-wrong b { color: #ffc24d; }
+.tg-wrong p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.45; color: #e6e9ef; }
+
+/* ---------------------------------------------------------------- 🔔 notices, ❤️ favorites, promo code, re-rent */
+.gd-actions:has(#gd-fav) { grid-template-columns: repeat(3, 1fr); }
+.gd-actions button.fav.on svg { color: #ff5a6e; fill: #ff5a6e; }
+.gd-actions button.fav.on { box-shadow: inset 0 0 0 1px rgba(255, 90, 110, .35); }
+.notices { display: flex; flex-direction: column; gap: 8px; }
+.notice { display: flex; gap: 12px; align-items: flex-start; text-align: left; width: 100%; padding: 13px 14px; border-radius: 16px;
+  background: var(--card); border: 1px solid var(--border, rgba(255,255,255,.06)); color: var(--text); font: inherit; }
+.notice i { flex: 0 0 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: rgba(43, 140, 255, .12); color: #5aa9ff; }
+.notice i svg { width: 18px; height: 18px; }
+.notice p { margin: 0; font-size: 13.5px; line-height: 1.45; word-break: break-word; }
+.notice small { display: block; margin-top: 5px; color: var(--muted); font-size: 11.5px; }
+.notice.unread { border-color: rgba(43, 140, 255, .45); box-shadow: 0 0 0 1px rgba(43, 140, 255, .18), 0 6px 22px -10px rgba(43, 140, 255, .55); }
+.notice.unread i { background: #2b8cff; color: #fff; }
+.fav-wrap { position: relative; }
+.fav-wrap.gone .gift-card { opacity: .5; filter: grayscale(.6); }
+.fav-gone { position: absolute; top: 10px; left: 10px; right: 10px; text-align: center; padding: 4px 6px; border-radius: 9px;
+  background: rgba(10, 12, 16, .82); color: #ffb3bc; font-size: 11px; font-weight: 700; }
+.promo-box { min-height: 0; }
+.promo-open { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 14px; border-radius: 14px; font: inherit; font-weight: 700;
+  font-size: 14px; color: #8fc1ff; background: transparent; border: 1px dashed rgba(90, 169, 255, .45); }
+.promo-open svg, .promo-on svg { width: 18px; height: 18px; flex: none; }
+.promo-form { display: flex; gap: 8px; }
+.promo-form input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(90, 169, 255, .45); background: var(--card-2);
+  color: var(--text); font: inherit; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; outline: none; }
+.promo-form .btn { width: auto; padding: 0 18px; margin: 0; }
+.promo-on { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-radius: 14px; color: #3fe39a; font-size: 13.5px; font-weight: 700;
+  background: rgba(20, 210, 120, .1); border: 1px solid rgba(20, 210, 120, .35); }
+.promo-on span { flex: 1; }
+.promo-on b { font-size: 12px; padding: 3px 8px; border-radius: 8px; background: rgba(20, 210, 120, .18); letter-spacing: .05em; }
+.promo-on button { background: none; border: 0; color: var(--muted); font: inherit; font-size: 12px; text-decoration: underline; padding: 0 0 0 4px; }
+.kv.disc b, .kv.disc span { color: #3fe39a; }
+#rerent svg { vertical-align: -3px; margin-right: 4px; }

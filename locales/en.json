@@ -248,7 +248,7 @@
     "price_changed": "The gift price has changed.",
     "wallet": "Wallet error.",
     "listing_stale": "Price data is outdated. Refresh the catalogue and open the gift again.",
-    "display_limit": "Fragment limit: a gift can be moved at most 3 times per hour. Please try later.",
+    "display_limit": "Fragment limit: one gift can't be shown more than 3 times an hour. Try again in about 20 minutes.",
     "display_failed": "Telegram or Fragment refused the request. Connect Telegram again or use the Fragment link method.",
     "extend_unavailable": "This rental can't be extended right now.",
     "extend_pending": "An extension order for this rental already exists.",
@@ -261,7 +261,14 @@
     "topup_not_found": "Top-up not found.",
     "not_found": "Not found.",
     "bad_amount": "Invalid amount.",
-    "user_not_found": "User not found."
+    "user_not_found": "User not found.",
+    "login_expired": "Your Telegram login expired. Tap «Connect Telegram» again to get a new link.",
+    "wrong_account": "The login was confirmed from another Telegram account.",
+    "promo_invalid": "Promo code not found or inactive",
+    "promo_expired": "Promo code has expired",
+    "promo_used_up": "Promo code limit reached",
+    "promo_already_used": "You have already used this promo code",
+    "favorites_full": "Favorites list is full (100)"
   },
   "bot": {
     "welcome": "Hello, {name}! 👋\n\n<b>{app}</b> — rent Telegram gifts and pay in UZS. The gift is connected straight to your Telegram profile through Fragment.\n\nTap the button below to start.",
@@ -295,7 +302,10 @@
     "number_ready": "📞 Number <b>{name}</b> is ready!\n\nLog in to Telegram with this number — get the login code on the order page in the app.\nRental ends: {end}",
     "awaiting_link_username": "🎉 <b>{name}</b> is rented!\n\nOpen the order in the app and follow the Fragment connection steps.",
     "refunded_balance": "💸 Order #{id}: <b>{amount}</b> returned to your balance.",
-    "open_app": "Open the app"
+    "open_app": "Open the app",
+    "tg_reminder": "🎁 Your «{name}» rental is ready but not shown on your profile yet.\n\nOpen the app → «Connect Telegram» → tap «Confirm» in Telegram. You only do this once.",
+    "tg_wrong_account": "⚠️ For «{name}» the login was confirmed from another account ({account}). Open the app and choose the account.",
+    "tg_limit": "⏳ «{name}»: Fragment limit (3 times an hour). Tap «Connect Telegram» again in 20 minutes."
   },
   "admin": {
     "only": "This command is for admins only.",
@@ -457,7 +467,18 @@
     "connected_as": "Connected account: {name}",
     "alt_title": "Another way: Fragment link",
     "android": "If the link doesn't open, copy it and open it in Telegram.",
-    "timeout": "Time is up. Please try again."
+    "timeout": "Time is up. Please try again.",
+    "step1": "Tap «Connect Telegram» below",
+    "step2": "Telegram sends a «Login attempt» message — tap «Confirm» in it",
+    "step3": "Come back to the app — the gift appears on your profile by itself",
+    "where": "Where is it? Telegram → chat list → «Telegram» (official chat with a blue tick).",
+    "auto": "If the app closes, don't worry: once you confirm, the gift is shown automatically and the bot will tell you.",
+    "wrong_title": "A different account was connected",
+    "wrong_text": "The login was confirmed from {account} — not the account this app is open in.",
+    "wrong_use": "Show it on that account anyway",
+    "wrong_reset": "Reconnect my own account",
+    "alt_hint": "If method 1 doesn't work (especially on desktop and some Android phones):",
+    "method2": "Method 2: via Fragment"
   },
   "ext": {
     "label": "extension",
@@ -549,7 +570,8 @@
     "ref_reward": "🎁 A friend you invited made a purchase: <b>+{amount}</b> to your balance.",
     "ref_joined": "👥 {name} joined with your link. You'll get a bonus from every purchase!",
     "purchase_done": "⭐ <b>{what}</b> sent to @{to}!",
-    "purchase_refunded": "↩️ {what} for @{to} was not sent. <b>{amount}</b> returned to your balance."
+    "purchase_refunded": "↩️ {what} for @{to} was not sent. <b>{amount}</b> returned to your balance.",
+    "fav_cheaper": "❤️ Your favorite gift got cheaper!\n\n<b>{name}</b> — the daily price dropped by {percent}%. Good time to rent."
   },
   "stars": {
     "seg_stars": "Stars",
@@ -690,5 +712,23 @@
     "title": "Join our channel",
     "text": "Don't miss new gifts, deals and important news — join our channel.",
     "join": "Join the channel"
+  },
+  "x": {
+    "bell": "Notifications",
+    "bell_empty": "No notifications yet",
+    "favorites": "Favorites",
+    "fav_empty": "Tap ❤️ on a gift card — it shows up here and we'll tell you when it gets cheaper",
+    "fav_added": "Added to favorites ❤️ We'll tell you when it gets cheaper",
+    "fav_removed": "Removed from favorites",
+    "fav_gone": "Not on the market now",
+    "promo": "Promo code",
+    "promo_ph": "Enter promo code",
+    "promo_apply": "Apply",
+    "promo_ok": "Promo code applied: −{amount}",
+    "promo_remove": "Remove",
+    "discount": "Discount",
+    "rerent": "Rent again",
+    "rerent_gone": "This gift is not for rent right now",
+    "just_now": "just now"
   }
 }

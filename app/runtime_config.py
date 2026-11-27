@@ -70,6 +70,9 @@ FIELDS: list[dict] = [
      "TAQIQLAYDI (masalan gift egasi narxni oshirgan bo'lsa). Panelda faqat KAMAYTIRISH mumkin — oshirish faqat Railway'da."},
     {"key": "max_tx_fee_ton", "type": "float", "group": "safety", "label": "Tarmoq komissiyasi chegarasi, TON (MAX_TX_FEE_TON)",
      "min": 0, "cap_env": True, "help": "Har bir tranzaksiyada blokcheyn komissiyasi uchun qo'shimcha ruxsat etilgan TON. Panelda faqat KAMAYTIRISH mumkin."},
+    {"key": "min_ton_balance", "type": "float", "group": "safety", "label": "TON kam qolsa ogohlantirish, TON (MIN_TON_BALANCE)",
+     "min": 0, "max": 100000, "help": "Admin hamyonida shu miqdordan kam TON qolsa, bot hamma adminlarga xabar yuboradi (6 soatda bir takrorlanadi) "
+     "va panelda qizil ogohlantirish chiqadi. Hamyon bo'sh qolsa ijaralar to'xtaydi. 0 = o'chiq."},
     # --- Hot rejim
     {"key": "auto_rent", "type": "bool", "group": "hot", "label": "To'lovdan keyin avtomatik ijaraga olish (AUTO_RENT)",
      "help": "Faqat WALLET_MODE=hot bo'lganda ishlaydi: to'lov tasdiqlanishi bilan server o'zi Marketapp'da ijaraga oladi, admin hech narsa bosmaydi. "

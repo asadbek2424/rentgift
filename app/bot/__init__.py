@@ -17,6 +17,7 @@ def create_bot(settings: Settings) -> tuple[Bot, Dispatcher]:
     dp = Dispatcher()
     dp.include_router(userbot_login.router)  # admin-only; catches the 2FA password reply
     dp.include_router(broadcast.router)  # admin-only; must see the next admin message after /broadcast
+    dp.include_router(admin.staff_router)   # /panel for owners and operators
     dp.include_router(admin.router)     # admin first: its filter only matches admins
     dp.include_router(subscribe_gate.router)                      # «✅ Check subscription» button
     gate = subscribe_gate.SubscriptionGate()

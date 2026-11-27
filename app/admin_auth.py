@@ -51,7 +51,7 @@ def check_token(settings: Settings, token: str, now: float | None = None) -> int
         uid_int = int(uid)
     except (ValueError, TypeError):
         return None
-    return uid_int if uid_int in settings.admin_ids else None
+    return uid_int if uid_int in settings.staff_ids else None
 
 
 def new_code(admin_id: int, now: float | None = None) -> str | None:

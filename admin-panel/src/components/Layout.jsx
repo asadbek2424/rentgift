@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate, Outlet, Navigate } from 'react-route
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Wallet, Users, Megaphone, ScrollText, Settings, Search, Bot, Menu, X, LogOut, RefreshCw,
-  ShoppingBag, Star, Calculator, ExternalLink, SlidersHorizontal, Radio,
+  ShoppingBag, Star, Calculator, ExternalLink, SlidersHorizontal, Radio, Link2Off, TicketPercent, PieChart,
 } from 'lucide-react';
 import { Avatar, Toast } from './ui.jsx';
 import { useApi, getSession, getAdmin, clearSession, api } from '../data/api.js';
@@ -11,28 +11,33 @@ import { useApi, getSession, getAdmin, clearSession, api } from '../data/api.js'
 const NAV = (c = {}) => [
   { group: 'Asosiy', items: [
     { to: '/', label: "Umumiy ko'rinish", icon: LayoutDashboard },
-    { to: '/finance', label: 'Narx va moliya', icon: Calculator },
+    { to: '/finance', label: 'Narx va moliya', icon: Calculator, owner: true },
+    { to: '/analytics', label: 'Kolleksiyalar tahlili', icon: PieChart, owner: true },
   ] },
   { group: 'Savdo', items: [
     { to: '/orders', label: 'Buyurtmalar', icon: ShoppingBag, badge: (c.review || 0) + (c.toRent || 0) + (c.toSign || 0) + (c.problems || 0) },
+    { to: '/connect-issues', label: 'Ulash muammolari', icon: Link2Off, badge: c.connectIssues },
     { to: '/topups', label: "Balans to'ldirish", icon: Wallet, badge: c.openTopups },
     { to: '/purchases', label: 'Stars va Premium', icon: Star, badge: c.openPurchases },
   ] },
   { group: 'Mijozlar', items: [
     { to: '/users', label: 'Foydalanuvchilar', icon: Users },
-    { to: '/broadcast', label: 'Xabar tarqatish', icon: Megaphone },
-    { to: '/channels', label: 'Majburiy kanallar', icon: Radio },
+    { to: '/promos', label: 'Promo-kodlar', icon: TicketPercent, owner: true },
+    { to: '/broadcast', label: 'Xabar tarqatish', icon: Megaphone, owner: true },
+    { to: '/channels', label: 'Majburiy kanallar', icon: Radio, owner: true },
   ] },
   { group: 'Tizim', items: [
     { to: '/activity', label: 'Faoliyat logi', icon: ScrollText },
-    { to: '/bot-settings', label: 'Bot sozlamalari', icon: SlidersHorizontal },
-    { to: '/settings', label: 'Karta va hamyon', icon: Settings },
+    { to: '/bot-settings', label: 'Bot sozlamalari', icon: SlidersHorizontal, owner: true },
+    { to: '/settings', label: 'Karta va hamyon', icon: Settings, owner: true },
   ] },
 ];
 
 // Toast va umumiy hisoblagichlar (badge) — barcha sahifalar uchun
 const ToastCtx = createContext(() => {});
 export const useToast = () => useContext(ToastCtx);
+// operator: orders / top-ups / purchases / users only (the server enforces it too)
+export const role = (c = {}) => c.role || getAdmin()?.role || 'owner';
 const CountsCtx = createContext({ reload: () => {} });
 export const useCounts = () => useContext(CountsCtx);
 
@@ -68,7 +73,7 @@ function Sidebar({ counts, onNavigate }) {
       </div>
 
       <nav className="flex-1 space-y-5 overflow-y-auto pr-1">
-        {NAV(counts).map((g) => (
+        {NAV(counts).map((g) => ({ ...g, items: g.items.filter((it) => !it.owner || role(counts) !== 'operator') })).filter((g) => g.items.length).map((g) => (
           <div key={g.group}>
             <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500/80">{g.group}</p>
             <ul className="space-y-0.5">
@@ -177,7 +182,7 @@ export default function Layout() {
                   <Avatar name={admin.name || 'Admin'} size={30} />
                   <div className="leading-tight">
                     <p className="text-sm font-semibold">{admin.name || 'Admin'}</p>
-                    <p className="text-[11px] text-slate-500">Admin</p>
+                    <p className="text-[11px] text-slate-500">{role(counts) === 'operator' ? 'Operator' : 'Egasi (owner)'}</p>
                   </div>
                 </div>
                 <button title="Chiqish" className="rounded-xl bg-white/60 p-2 text-slate-600 hover:bg-white hover:text-rose-600" onClick={logout}><LogOut size={18} /></button>
