@@ -90,6 +90,7 @@
     "rent": "Ijaraga olish",
     "unavailable": "Bu gift hozir ijaraga berilmayapti",
     "limits": "Muddat: {min}–{max} kun",
+    "sellable": "ℹ️ Bu giftni egasi ijara paytida sotishi mumkin. Shunday bo'lsa, ijara erta tugaydi va to'lagan pulingiz to'liq balansingizga qaytadi.",
     "how": "To'lovdan keyin gift Marketapp orqali ijaraga olinadi va siz uni Fragment orqali Telegram profilingizga ulaysiz."
   },
   "status": {
@@ -302,6 +303,7 @@
     "number_ready": "📞 <b>{name}</b> raqami tayyor!\n\nTelegram'da shu raqam bilan kiring — kirish kodini ilovadagi buyurtma sahifasidan olasiz.\nIjara tugashi: {end}",
     "awaiting_link_username": "🎉 <b>{name}</b> ijaraga olindi!\n\nIlovada buyurtmani oching va Fragment orqali ulash qadamlarini bajaring.",
     "refunded_balance": "💸 Buyurtma #{id}: <b>{amount}</b> balansingizga qaytarildi.",
+    "sold_refund": "💸 «{name}» ijara paytida egasi tomonidan sotildi, shuning uchun ijara erta tugadi. To'lagan pulingiz to'liq — <b>{amount}</b> — balansingizga qaytarildi.",
     "open_app": "Ilovani ochish",
     "tg_reminder": "🎁 «{name}» ijarangiz tayyor, lekin hali Telegram profilingizga chiqarilmadi.\n\nIlovani oching → «Telegramni ulash» → Telegram'da «Tasdiqlash» ni bosing. Bu bir martalik qadam.",
     "tg_wrong_account": "⚠️ «{name}» uchun kirish boshqa akkauntdan ({account}) tasdiqlandi. Ilovani ochib, qaysi akkauntga qo'yishni tanlang.",
@@ -526,6 +528,7 @@
     "stars": "⭐ Stars"
   },
   "wallet": {
+    "need_more": "Balansingiz yetmaydi — yana {amount} kerak. Balansni to'ldiring.",
     "title": "Balans",
     "current": "Joriy balans",
     "card_note": "Ilova va bot uchun bitta balans. Ijara, Stars va Premium shu yerdan to'lanadi.",
@@ -660,6 +663,7 @@
     "text": "Username Fragment orqali Telegram'ingizga ulanadi: quyidagi qadamlarni bajaring."
   },
   "ui": {
+    "my_gifts": "Giftlarim",
     "inv_sub": "Ijaradagi giftlaringiz — muddat tugashini kuzating",
     "act_sub": "Barcha buyurtmalar va ularning holati",
     "cart_sub": "Savatingiz — faqat ijaraga olish qoldi",

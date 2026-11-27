@@ -12,7 +12,7 @@ const state = {
   me: null, tab: 'catalog', segment: 'all', sort: 'recently_touch', category: 'gift', q: '', starsSeg: 'stars',
   filters: { collections: [], model: '', backdrop: '', symbol: '', price_min: '', price_max: '', num_min: '', num_max: '' },
   gifts: [], cursor: null, giftsLoaded: false, giftsError: false, collections: null,
-  view: null, orders: null, timers: [], poll: null, actSeg: null, invQ: '',
+  view: null, orders: null, timers: [], poll: null, invSeg: 'gifts', invQ: '',
   cart: loadCart(), cartSel: new Set(),
 };
 
@@ -28,8 +28,7 @@ function toggleCart(g) {
   else { state.cart.unshift(g); toast(t('ui.cart_added')); }
   saveCart();
   document.querySelectorAll(`[data-cart="${CSS.escape(g.address)}"]`).forEach(b => b.classList.toggle('on', inCart(g.address)));
-  const badge = document.querySelector('#tb-cart i');
-  if (badge) { badge.textContent = state.cart.length; badge.hidden = !state.cart.length; }
+  renderTabbar();
 }
 
 // ------------------------------------------------------------------ utilities
@@ -137,7 +136,7 @@ function avatarHtml(user) {
   return `<div class="avatar">${esc(initials.trim() || '?')}</div>`;
 }
 
-const TAB_LABEL = { catalog: 'nav.market', rentals: 'nav.inventory', activity: 'nav.activity', profile: 'nav.profile', stars: 'nav.stars', admin: 'nav.admin', guide: 'nav.guide' };
+const TAB_LABEL = { catalog: 'nav.market', rentals: 'nav.inventory', cart: 'nav.cart', profile: 'nav.profile', stars: 'nav.stars', admin: 'nav.admin', guide: 'nav.guide' };
 
 function pageTitle() {
   if (state.view?.name === 'order') return t('order.title', { id: state.view.id });
@@ -149,9 +148,9 @@ function pageTitle() {
 
 function pageSub() {
   if (state.view?.name === 'notices' || state.view?.name === 'favorites') return '';
-  if (state.view?.name === 'cart') return t('ui.cart_sub');
+  if (state.tab === 'cart' && !state.view) return t('ui.cart_sub');
   if (state.view) return '';
-  return { rentals: t('ui.inv_sub'), activity: t('ui.act_sub') }[state.tab] || '';
+  return { rentals: t(state.invSeg === 'history' ? 'ui.act_sub' : 'ui.inv_sub') }[state.tab] || '';
 }
 
 function renderTopbar() {
@@ -161,10 +160,8 @@ function renderTopbar() {
     ? `<button class="icon-btn" id="tb-back" aria-label="back">${icons.chevronLeft}</button>`
     : `<button class="avatar-btn" id="tb-profile" aria-label="profile">${avatarHtml(user)}</button>
        <button class="stars-pill" id="tb-stars"><span class="lbl">Stars</span>${icons.star}</button>`;
-  const n = state.cart.length;
   const right = user
     ? `<button class="round-btn" id="tb-bell" aria-label="${esc(t('x.bell'))}">${icons.bell}<i ${state.me?.unread ? '' : 'hidden'}>${Math.min(99, state.me?.unread || 0)}</i></button>
-       <button class="round-btn" id="tb-cart" aria-label="${esc(t('nav.cart'))}">${flat.basket}<i ${n ? '' : 'hidden'}>${n}</i></button>
        <div class="bal-pill"><button class="bal-plus" id="tb-plus" aria-label="top up">${icons.plus}</button>
        <button class="bal-sum" id="tb-bal">${esc(Number(user.balance_uzs || 0).toLocaleString('ru-RU').replace(/,/g, ' '))}<span class="sum-ico">${esc(t('common.sum'))}</span></button></div>`
     : `<button class="icon-btn" id="tb-lang" aria-label="language">${icons.globe}</button>`;
@@ -174,7 +171,6 @@ function renderTopbar() {
     const sub = pageSub();
     title.innerHTML = pageTitle() ? `${esc(pageTitle())}${sub ? `<small>${esc(sub)}</small>` : ''}` : '';
   }
-  $('#tb-cart', bar)?.addEventListener('click', () => openView('cart'));
   $('#tb-bell', bar)?.addEventListener('click', () => openView('notices'));
   $('#tb-profile', bar)?.addEventListener('click', () => switchTab('profile'));
   $('#tb-stars', bar)?.addEventListener('click', () => { state.category = 'stars'; switchTab('catalog'); });
@@ -182,14 +178,17 @@ function renderTopbar() {
   $('#tb-plus', bar)?.addEventListener('click', () => openView('balance'));
   $('#tb-back', bar)?.addEventListener('click', goBack);
   $('#tb-lang', bar)?.addEventListener('click', langSheet);
+  renderTabbar();          // the cart badge lives in the bottom bar
 }
 
 function renderTabbar() {
-  const tabs = [['catalog', nav.market], ['rentals', nav.inventory], ['activity', nav.activity], ['profile', nav.profile]];
+  const tabs = [['catalog', nav.market], ['rentals', nav.inventory], ['cart', nav.cart], ['profile', nav.profile]];
   const bar = $('#tabbar');
+  if (!bar) return;
   const current = state.tab === 'stars' ? 'catalog' : state.tab;
+  const n = state.cart.length;
   bar.innerHTML = tabs.map(([id, icon]) =>
-    `<button class="tab ${current === id && !state.view ? 'active' : ''}" data-tab="${id}">${icon}<span>${esc(t(TAB_LABEL[id]))}</span></button>`).join('');
+    `<button class="tab ${current === id && !state.view ? 'active' : ''}" data-tab="${id}"><span class="tab-ico">${icon}${id === 'cart' && n ? `<i class="tab-badge">${n > 99 ? '99+' : n}</i>` : ''}</span><span>${esc(t(TAB_LABEL[id]))}</span></button>`).join('');
   bar.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 }
 
@@ -229,7 +228,7 @@ export async function render() {
   if (state.view?.name === 'favorites') return favoritesView(view);
   if (state.view) {
     const mod = await import('./wallet.js');
-    if (state.view.name === 'cart') return cartView(view);
+    if (state.view.name === 'cart') { state.view = null; state.tab = 'cart'; return render(); }
     const fn = { balance: mod.balanceView, topup: mod.topupView, referral: mod.referralView, top: mod.topView }[state.view.name];
     if (fn) return fn(view, helpers(), state.view.id);
   }
@@ -245,7 +244,8 @@ export async function render() {
   if (state.tab === 'catalog' && state.category !== 'gift') return otherCatalogView(view);
   if (state.tab === 'catalog') return state.segment === 'all' ? catalogView(view) : collectionsView(view);
   if (state.tab === 'rentals') return inventoryView(view);
-  if (state.tab === 'activity') return rentalsView(view);
+  if (state.tab === 'activity') { state.tab = 'rentals'; state.invSeg = 'history'; return render(); }
+  if (state.tab === 'cart') return cartView(view);
   if (state.tab === 'guide') return guideView(view);
   if (state.tab === 'profile') return profileView(view);
   if (state.tab === 'admin') {
@@ -827,6 +827,7 @@ function giftSheet(g) {
     </div>
     <div class="promo-box mt" id="promo-box"><button class="promo-open" id="promo-open">${icons.tag}<span>${esc(t('x.promo'))}</span></button></div>
     <div class="mt" id="bd"></div><p class="note center" id="ton" style="margin-top:6px"></p>
+    ${g.sellable ? `<p class="note center sellable-note">${esc(t('gift.sellable'))}</p>` : ''}
     <p class="note center">${esc(other ? t('catalog.other_hint') : t('gift.how'))}</p>
     <div class="sticky-cta"><button class="btn" id="rent">${esc(t('gift.rent'))}</button></div>`;
   openSheet(html, (sheet, close) => {
@@ -884,7 +885,9 @@ function giftSheet(g) {
       $('span', b).textContent = t(inCart(g.address) ? 'ui.in_cart' : 'ui.to_cart');
     };
     const quick = [1, 3, 7, 14, 30].filter(d => d >= g.min_days && d <= g.max_days);
+    let total = null;
     const update = async () => {
+      total = null;
       $('#days', sheet).textContent = days;
       $('#minus', sheet).disabled = days <= g.min_days;
       $('#plus', sheet).disabled = days >= g.max_days;
@@ -900,7 +903,8 @@ function giftSheet(g) {
         $('#bd', sheet).innerHTML = breakdown(q.per_day_uzs, q.days, q.service_fee_uzs || 0, q.amount_uzs - off, 0, off);
         if (promo) promoUi();
         $('#ton', sheet).textContent = '';
-        $('#rent', sheet).textContent = t('ui.rent_for', { price: money(q.amount_uzs - off) });
+        total = q.amount_uzs - off;
+        $('#rent', sheet).textContent = t('ui.rent_for', { price: money(total) });
         $('#rent', sheet).disabled = false;
       } catch (e) {
         if (mine !== seq) return;
@@ -913,6 +917,17 @@ function giftSheet(g) {
     $('#rent', sheet).onclick = async e => {
       e.target.disabled = true;
       try {
+        if (total != null) {
+          // not enough on the balance → straight to top-up with the missing amount, no unpaid order left behind
+          const bal = Number((await api.balance().catch(() => null))?.balance_uzs ?? state.me?.user?.balance_uzs ?? 0);
+          if (state.me?.user) state.me.user.balance_uzs = bal;
+          if (bal < total) {
+            haptic('heavy'); close();
+            toast(t('wallet.need_more', { amount: money(total - bal) }), true);
+            openView('balance', { need: total - bal });
+            return;
+          }
+        }
         const order = await api.createOrder(g.address, days, promo?.code || '');
         haptic('medium'); close(); state.orders = null; openOrder(order.id);
       } catch (err) { toast(errText(err), true); e.target.disabled = false; }
@@ -941,7 +956,7 @@ async function noticesView(view) {
   view.querySelectorAll('[data-order]').forEach(b => b.onclick = () => openOrder(b.dataset.order));
   view.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
     const tab = b.dataset.tab;
-    if (tab === 'favorites') openView('favorites'); else if (tab === 'balance') openView('balance'); else switchTab(tab === 'stars' ? 'stars' : 'activity');
+    if (tab === 'favorites') openView('favorites'); else if (tab === 'balance') openView('balance'); else { if (tab !== 'stars') state.invSeg = 'history'; switchTab(tab === 'stars' ? 'stars' : 'rentals'); }
   });
   if (data.unread) {
     api.noticesRead().catch(() => {});
@@ -1233,7 +1248,8 @@ function bindOrder(view, o) {
   $('#open-parent', view)?.addEventListener('click', () => openOrder(o.parent_id));
   $('#rerent', view)?.addEventListener('click', e => rerent(o, e.currentTarget));
   $('#extend-btn', view)?.addEventListener('click', () => extendSheet(o));
-  $('#go-topup', view)?.addEventListener('click', () => openView('balance'));
+  $('#go-topup', view)?.addEventListener('click', () => openView('balance', {
+    need: Math.max(0, o.amount_uzs - (o.unique_add_uzs || 0) - Number(state.me?.user?.balance_uzs || 0)) || undefined }));
   $('#pay-balance', view)?.addEventListener('click', async e => {
     e.target.disabled = true;
     try { await api.payBalance(o.id); haptic('medium'); state.me = await api.me(); state.orders = null; render(); }
@@ -1351,20 +1367,12 @@ function statusCard(o) {
       <span class="sc-go">${esc(t('ui.go_order'))}</span></button></div>`;
 }
 
-async function rentalsView(view) {
-  view.innerHTML = `<div class="list">${'<div class="skeleton" style="height:130px"></div>'.repeat(3)}</div>`;
-  try { state.orders = (await api.orders()).items; } catch (e) { view.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
-  if (state.tab !== 'activity' || state.view) return;
-  const open = state.orders.filter(o => !FINAL.has(o.status)), past = state.orders.filter(o => FINAL.has(o.status));
-  if (!state.actSeg) state.actSeg = open.length || !past.length ? 'active' : 'history';
-  const items = state.actSeg === 'active' ? open : past;
-  view.innerHTML = `<div class="seg pill">
-      <button data-rs="active" class="${state.actSeg === 'active' ? 'active' : ''}">${esc(t('rentals.active'))} <em>${open.length}</em></button>
-      <button data-rs="history" class="${state.actSeg === 'history' ? 'active' : ''}">${esc(t('rentals.history'))} <em>${past.length}</em></button></div>`
-    + (items.length ? `<div class="list act-list">${items.map(statusCard).join('')}</div>`
-      : `<div class="card hero"><div class="hero-art">${art.giftBox}</div><h2>${esc(t('rentals.empty'))}</h2>
-        <p>${esc(t('gift.how'))}</p><button class="btn mt2" id="browse">${esc(t('rentals.browse'))}</button></div>`);
-  view.querySelectorAll('[data-rs]').forEach(b => b.onclick = () => { state.actSeg = b.dataset.rs; haptic(); rentalsView(view); });
+function historyList(view) {
+  // every order, newest first: rentals, extensions, failed and refunded ones
+  const items = [...state.orders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  view.innerHTML = items.length ? `<div class="list act-list">${items.map(statusCard).join('')}</div>`
+    : `<div class="card hero"><div class="hero-art">${art.giftBox}</div><h2>${esc(t('rentals.empty'))}</h2>
+      <p>${esc(t('gift.how'))}</p><button class="btn mt2" id="browse">${esc(t('rentals.browse'))}</button></div>`;
   view.querySelectorAll('[data-order]').forEach(b => b.onclick = () => openOrder(b.dataset.order));
   $('#browse', view)?.addEventListener('click', () => switchTab('catalog'));
 }
@@ -1383,10 +1391,25 @@ function invCard(o) {
 async function inventoryView(view) {
   const head = () => `<div class="toolbar"><div class="search grow-search">${icons.search}<input id="iq" placeholder="${esc(t('ui.search_inv'))}" value="${esc(state.invQ)}"></div>
     <button class="tool icon-only" id="inv-filter" aria-label="${esc(t('catalog.sort_btn'))}">${icons.sliders}</button></div>`;
-  view.innerHTML = head() + `<div class="grid">${'<div class="skeleton" style="aspect-ratio:.72"></div>'.repeat(4)}</div>`;
-  try { state.orders = (await api.orders()).items; } catch (e) { view.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
-  if (state.tab !== 'rentals' || state.view) return;
+  const seg = state.invSeg === 'history' ? 'history' : 'gifts';
+  const segs = (live, all) => `<div class="seg pill inv-seg">
+      <button data-is="gifts" class="${seg === 'gifts' ? 'active' : ''}">${esc(t('ui.my_gifts'))}${live == null ? '' : ` <em>${live}</em>`}</button>
+      <button data-is="history" class="${seg === 'history' ? 'active' : ''}">${esc(t('rentals.history'))}${all == null ? '' : ` <em>${all}</em>`}</button></div>`;
+  const bindSegs = () => view.querySelectorAll('[data-is]').forEach(b => b.onclick = () => {
+    if (b.dataset.is === seg) return;
+    haptic(); state.invSeg = b.dataset.is; renderTopbar(); inventoryView(view);
+  });
+  view.innerHTML = segs() + (seg === 'gifts' ? head() + `<div class="grid">${'<div class="skeleton" style="aspect-ratio:.72"></div>'.repeat(4)}</div>`
+    : `<div class="list">${'<div class="skeleton" style="height:130px"></div>'.repeat(3)}</div>`);
+  bindSegs();
+  try { state.orders = (await api.orders()).items; } catch (e) { view.innerHTML = segs() + `<div class="empty">${esc(errText(e))}</div>`; bindSegs(); return; }
+  if (state.tab !== 'rentals' || state.view || (state.invSeg === 'history' ? 'history' : 'gifts') !== seg) return;
   const live = state.orders.filter(o => LIVE.has(o.status) && o.kind !== 'extend');
+  if (seg === 'history') {
+    view.innerHTML = segs(live.length, state.orders.length) + `<div id="hist"></div>`;
+    bindSegs();
+    return historyList($('#hist', view));
+  }
   const draw = () => {
     const q = state.invQ.trim().toLowerCase().replace(/^#/, '');
     const items = live.filter(o => !q || `${o.nft_name} ${o.id}`.toLowerCase().includes(q));
@@ -1397,9 +1420,10 @@ async function inventoryView(view) {
     body.querySelectorAll('[data-order]').forEach(b => b.onclick = () => openOrder(b.dataset.order));
     $('#browse', body)?.addEventListener('click', () => switchTab('catalog'));
   };
-  view.innerHTML = head() + `<div id="inv-body"></div>`;
+  view.innerHTML = segs(live.length, state.orders.length) + head() + `<div id="inv-body"></div>`;
+  bindSegs();
   $('#iq', view).oninput = e => { state.invQ = e.target.value; draw(); };
-  $('#inv-filter', view).onclick = () => switchTab('activity');
+  $('#inv-filter', view).onclick = () => { state.invSeg = 'history'; renderTopbar(); inventoryView(view); };
   draw();
   const tick = () => view.querySelectorAll('[data-left-until]').forEach(el => {
     if (el.dataset.leftUntil) el.textContent = duration((new Date(el.dataset.leftUntil) - Date.now()) / 1000);
@@ -1507,7 +1531,7 @@ function profileView(view) {
     <p class="center muted" style="font-size:12px;line-height:1.5;padding:0 10px;margin-top:16px">${esc(t('profile.safe_note'))}</p>`;
   const actions = {
     lang: langSheet, support: () => openTg(app.support), channel: () => openTg(app.channel),
-    rentals: () => switchTab('rentals'), activity: () => switchTab('activity'),
+    rentals: () => { state.invSeg = 'gifts'; switchTab('rentals'); }, activity: () => { state.invSeg = 'history'; switchTab('rentals'); },
     offer: () => openLink(app.offer_url), balance: () => openView('balance'), topup: () => openView('balance'),
     favorites: () => openView('favorites'), notices: () => openView('notices'),
     referral: () => openView('referral'), top: () => openView('top'), guide: () => openView('guide'),
@@ -1661,7 +1685,7 @@ async function boot() {
   if (orderId && state.tab !== 'admin') state.view = { name: 'order', id: Number(orderId) };
   if (orderId && params.get('extend')) state.autoExtend = Number(orderId);
   if (state.tab === 'admin' && orderId) state.adminFocus = Number(orderId);
-  if (state.tab === 'rentals' && params.get('tab') === 'rentals' && !orderId) state.tab = 'activity';
+  if (state.tab === 'rentals' && params.get('tab') === 'rentals' && !orderId) state.invSeg = 'history';
   await render();
   hideSplash();
   if (state.me.subscribe?.length) subscribeGate(state.me.subscribe);

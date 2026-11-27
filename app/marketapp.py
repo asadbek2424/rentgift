@@ -154,8 +154,11 @@ class MarketappClient:
                          backdrop: str | None = None, limit: int = 20) -> dict:
         if sort_by not in LISTING_SORTS:
             sort_by = "recently_touch"
+        # include_sellable: gifts the owner may sell during the rent (Marketapp's site shows them too). If one is
+        # sold, the rent ends early and Marketapp returns everything we paid; orders._sold_during_rent refunds.
         params = {"cursor": cursor, "collection_address": collection_address, "sort_by": sort_by,
-                  "model": model, "symbol": symbol, "backdrop": backdrop, "limit": max(1, min(int(limit), 100))}
+                  "model": model, "symbol": symbol, "backdrop": backdrop, "limit": max(1, min(int(limit), 100)),
+                  "include_sellable": "true"}
         key = tuple(sorted((k, str(v)) for k, v in params.items()))
         cached = self._listing_cache.get(key)
         if cached is not None:
@@ -172,6 +175,8 @@ class MarketappClient:
         if sort_by not in LISTING_SORTS:
             sort_by = "recently_touch"
         params = {"cursor": cursor, "sort_by": sort_by, "limit": max(1, min(int(limit), 100))}
+        if category == "username":
+            params["include_sellable"] = "true"       # numbers have no sale during rent
         key = (category,) + tuple(sorted((k, str(v)) for k, v in params.items()))
         cached = self._listing_cache.get(key)
         if cached is not None:
@@ -382,7 +387,7 @@ class DemoMarketapp:
                                    {"trait_type": "Symbol", "value": _SYMBOLS[(n * 3) % len(_SYMBOLS)]}],
                     "min_duration": (86400, 3 * 86400)[(n + k) % 2], "max_duration": (7, 14, 30, 60)[k] * 86400,
                     "price_per_day": str(max(10_000_000, int(base * factor))),
-                    "discount_per_day": (0, 0.3, 0, 0.1, 0, 0, 50)[n % 7],
+                    "discount_per_day": (0, 0.3, 0, 0.1, 0, 0, 50)[n % 7], "is_sellable_during_rent": n % 3 == 0,
                     "listed_at": 1_763_000_000 + n, "_collection": caddr, "_num": number})
         self.rented: dict[str, int] = {}
         self.seen: dict[str, dict] = {}

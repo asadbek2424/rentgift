@@ -928,3 +928,49 @@ def test_usernames_and_numbers_have_their_own_markup():
         await rates.close()
 
     asyncio.run(scenario())
+
+
+def test_sellable_gift_sold_during_rent_refunds_customer():
+    """Gifts the owner may sell during the rent are offered too; if one is sold, the whole payment goes back."""
+    from app import orders as svc
+    from app.context import AppContext, NullNotifier
+    from app.config import get_settings
+    from app.db import init_db
+    from app.marketapp import DemoMarketapp
+    from app.pricing import RateProvider
+    from app.wallet import balance_of
+
+    async def scenario():
+        await init_db()
+        market = DemoMarketapp()
+        settings = get_settings().model_copy(update={"use_rent_events": True})
+        ctx = AppContext(settings=settings, market=market, rates=RateProvider(), notifier=NullNotifier())
+        await svc.upsert_user(31, "Sold")
+        gift = next(i for i in market.items[20:] if i.get("is_sellable_during_rent"))
+        days = max(3, gift["min_duration"] // 86400)
+        order = await svc.create_order(ctx, 31, gift["nft_address"], days)
+        assert order.sellable is True
+        await svc.attach_receipt(ctx, 31, order.id, file_id="r")
+        await svc.confirm_payment(ctx, order.id, 1)
+        await svc.prepare_tx(ctx, order.id)
+        await svc.tx_sent(ctx, order.id, "admin:1", "boc", None)
+        end = int(__import__("time").time()) + days * 86400
+        events = [{"address": gift["nft_address"], "type": "rented", "type_data": {"end_time": end}}]
+
+        async def feed(cursor=None, **_):
+            items, events[:] = list(events), []
+            return {"cursor": f"s{len(items)}{cursor}", "items": items}
+        market.rent_events = feed
+        market.rented[gift["nft_address"]] = end
+        await svc.worker_tick(ctx)
+        assert (await svc.get_order(order.id)).status == "awaiting_link"
+        before = await balance_of(31)
+
+        events.append({"address": gift["nft_address"], "type": "cancel", "type_data": {}})   # bought from us
+        await svc.worker_tick(ctx)
+        order = await svc.get_order(order.id)
+        assert order.status == "refunded"
+        assert await balance_of(31) == before + order.amount_uzs
+        assert ("user", order.id, "sold_refund") in ctx.notifier.sent
+
+    asyncio.run(scenario())

@@ -90,6 +90,7 @@
     "rent": "Rent",
     "unavailable": "This gift is not for rent right now",
     "limits": "Period: {min}–{max} days",
+    "sellable": "ℹ️ The owner may sell this gift during your rental. If so, the rental ends early and your full payment returns to your balance.",
     "how": "After payment the gift is rented on Marketapp and you connect it to your Telegram profile through Fragment."
   },
   "status": {
@@ -302,6 +303,7 @@
     "number_ready": "📞 Number <b>{name}</b> is ready!\n\nLog in to Telegram with this number — get the login code on the order page in the app.\nRental ends: {end}",
     "awaiting_link_username": "🎉 <b>{name}</b> is rented!\n\nOpen the order in the app and follow the Fragment connection steps.",
     "refunded_balance": "💸 Order #{id}: <b>{amount}</b> returned to your balance.",
+    "sold_refund": "💸 «{name}» was sold by its owner during your rental, so the rental ended early. Your full payment — <b>{amount}</b> — is back on your balance.",
     "open_app": "Open the app",
     "tg_reminder": "🎁 Your «{name}» rental is ready but not shown on your profile yet.\n\nOpen the app → «Connect Telegram» → tap «Confirm» in Telegram. You only do this once.",
     "tg_wrong_account": "⚠️ For «{name}» the login was confirmed from another account ({account}). Open the app and choose the account.",
@@ -526,6 +528,7 @@
     "stars": "⭐ Stars"
   },
   "wallet": {
+    "need_more": "Not enough balance — {amount} more is needed. Please top up.",
     "title": "Balance",
     "current": "Current balance",
     "card_note": "One balance for the app and the bot. Rentals, Stars and Premium are paid from here.",
@@ -660,6 +663,7 @@
     "text": "The username connects to your Telegram through Fragment: follow the steps below."
   },
   "ui": {
+    "my_gifts": "My gifts",
     "inv_sub": "Gifts you are renting — watch the time left",
     "act_sub": "All orders and their status",
     "cart_sub": "Your shopping basket — all that's left is to rent",

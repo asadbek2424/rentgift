@@ -348,4 +348,5 @@ def gift_card(item: dict, config: PricingConfig | None) -> dict:
         "min_days": min_days, "max_days": max_days, "rentable": min_days <= max_days,
         "service_fee_uzs": int(config.service_fee) if config else None,
         "discount": _discount(item),
+        "sellable": bool(item.get("is_sellable_during_rent")),
     }

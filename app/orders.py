@@ -25,7 +25,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from .context import AppContext
 from .db import (Order, OrderEvent, OrderStatus as S, Session, User, aware, count_open_orders, get_setting,
@@ -1002,7 +1002,10 @@ async def follow_rent_events(ctx: AppContext, now: datetime) -> int:
                 order = live.pop(address)
                 end = aware(order.end_time)
                 if end and end > now + timedelta(minutes=5):
-                    await ctx.notifier.admin(order, "failed", error="rent_cancelled_on_chain")
+                    if order.sellable:
+                        await _sold_during_rent(ctx, order)
+                    else:
+                        await ctx.notifier.admin(order, "failed", error="rent_cancelled_on_chain")
         new_cursor = page.get("cursor")
         if new_cursor and new_cursor != cursor:
             cursor = new_cursor
@@ -1011,6 +1014,26 @@ async def follow_rent_events(ctx: AppContext, now: datetime) -> int:
         if not items:
             break
     return processed
+
+
+async def _sold_during_rent(ctx: AppContext, order: Order) -> None:
+    """A "sellable during rent" gift was bought from us: Marketapp returns everything we paid in GRAM,
+    so the customer gets the whole rental (with its extensions) back on the balance."""
+    from .wallet import credit
+    try:
+        order = await _transition(order.id, {S.ACTIVE, S.AWAITING_LINK}, S.REFUNDED, "system",
+                                  note="gift sold during rent")
+    except ServiceError:
+        return
+    async with Session() as session:
+        extra = (await session.execute(select(func.coalesce(func.sum(Order.amount_uzs), 0)).where(
+            Order.parent_id == order.id, Order.status == S.EXTENDED))).scalar_one()
+    amount = int(order.amount_uzs or 0) + int(extra or 0)
+    if amount > 0:
+        await credit(order.user_id, amount, "refund", order.id, note="sold during rent")
+    from .bot.common import fmt_sum
+    await ctx.notifier.user(order, "sold_refund", amount=fmt_sum(amount))
+    await ctx.notifier.admin(order, "failed", error="sold_during_rent_refunded")
 
 
 async def worker_tick(ctx: AppContext) -> None:

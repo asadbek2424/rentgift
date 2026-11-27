@@ -76,6 +76,7 @@ export const nav = {
   market: f('<path d="M12 2.6 2.8 7.3a1 1 0 0 0 .46 1.9h17.5a1 1 0 0 0 .46-1.9L12 2.6Z"/><rect x="4.4" y="10.6" width="2.8" height="7.2" rx="1"/><rect x="10.6" y="10.6" width="2.8" height="7.2" rx="1"/><rect x="16.8" y="10.6" width="2.8" height="7.2" rx="1"/><rect x="2.6" y="19.2" width="18.8" height="2.4" rx="1.2"/>'),
   inventory: f('<rect x="3" y="3" width="8" height="8" rx="2.4"/><rect x="13" y="3" width="8" height="8" rx="2.4"/><rect x="3" y="13" width="8" height="8" rx="2.4"/><rect x="13" y="13" width="8" height="8" rx="2.4"/>'),
   activity: f('<path d="M12 3c5 0 9 3.6 9 8s-4 8-9 8c-1 0-2-.1-2.9-.4L5 20.5c-.6.3-1.3-.3-1.1-.9l.9-3A7.6 7.6 0 0 1 3 11c0-4.4 4-8 9-8Z"/><circle cx="8" cy="11" r="1.4" fill="#0b0f16"/><circle cx="12" cy="11" r="1.4" fill="#0b0f16"/><circle cx="16" cy="11" r="1.4" fill="#0b0f16"/>'),
+  cart: f('<rect x="6.2" y="2.2" width="2.2" height="7.4" rx="1.1" transform="rotate(30 7.3 5.9)"/><rect x="15.6" y="2.2" width="2.2" height="7.4" rx="1.1" transform="rotate(-30 16.7 5.9)"/><path d="M3.4 8.2h17.2a1.3 1.3 0 0 1 1.28 1.53l-1.6 8.7A3.3 3.3 0 0 1 17.04 21H6.96a3.3 3.3 0 0 1-3.24-2.57l-1.6-8.7A1.3 1.3 0 0 1 3.4 8.2Z"/><rect x="8.9" y="11.6" width="1.9" height="5.6" rx=".95" fill="#0b0f16"/><rect x="13.2" y="11.6" width="1.9" height="5.6" rx=".95" fill="#0b0f16"/>'),
   profile: f('<circle cx="12" cy="7.6" r="4.6"/><path d="M3.6 20.2c0-4.2 3.8-7 8.4-7s8.4 2.8 8.4 7c0 .7-.5 1.2-1.2 1.2H4.8c-.7 0-1.2-.5-1.2-1.2Z"/>'),
 };
 

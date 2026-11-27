@@ -435,7 +435,7 @@ async def gift_detail(address: str, user: CurrentUser = Depends(current_user)):
     config = config.for_category(listing.get("category")) if config else None
     item = {"nft_address": listing["address"], "nft_name": listing["name"], "attributes": listing["attributes"],
             "price_per_day": listing["price_per_day"], "min_duration": listing["min_duration"],
-            "max_duration": listing["max_duration"]}
+            "max_duration": listing["max_duration"], "is_sellable_during_rent": listing.get("sellable")}
     return gift_card(item, config)
 
 

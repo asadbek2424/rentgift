@@ -43,8 +43,11 @@ export async function balanceView(view, h) {
   const open = data.topups.find(x => x.status === 'pending');
   const app = h.state.me.app;
   const presets = [20000, 50000, 100000, 200000, 500000].filter(v => v >= app.topup_min && v <= app.topup_max);
+  const need = Number(h.state.view?.need || 0);
   let amount = presets[0] || app.topup_min;
-  view.innerHTML = balanceCard(h, data.balance_uzs)
+  if (need > 0) amount = Math.min(app.topup_max, Math.max(app.topup_min, Math.ceil(need / 1000) * 1000));
+  view.innerHTML = (need > 0 ? `<div class="card need-more">${icons.wallet || ''}<p>${h.esc(t('wallet.need_more', { amount: money(need) }))}</p></div>` : '')
+    + balanceCard(h, data.balance_uzs)
     + (open ? `<button class="card resume" id="resume"><div><b>${h.esc(t('wallet.waiting'))}</b><span>${money(open.amount_uzs)} · #${open.id}</span></div>${icons.chevronRight}</button>` : '')
     + `<div class="card"><div class="section-title" style="margin-top:0"><span class="n-dot">1</span>${h.esc(t('wallet.choose'))}</div>
       <div class="amounts">${presets.map(v => `<button class="amount ${v === amount ? 'active' : ''}" data-amt="${v}">${Number(v).toLocaleString('ru-RU')}</button>`).join('')}</div>
