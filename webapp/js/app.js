@@ -289,19 +289,13 @@ function banner() {
     <div class="promo-art">${BANNER_ART}</div></button>`;
 }
 
-// Category bar (Gift · Username · Raqam · Stars) with glowing outline icons.
-const CAT_ICON = {
-  gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="8" width="17" height="5" rx="1.4" fill="currentColor" fill-opacity=".35"/><path d="M5 13v6.2c0 .8.6 1.3 1.3 1.3h11.4c.7 0 1.3-.5 1.3-1.3V13" fill="currentColor" fill-opacity=".55"/><path d="M12 8v12.5"/><path d="M12 8C10.6 4.6 7 4 7 6.4 7 8 9.6 8 12 8Zm0 0c1.4-3.4 5-4 5-1.6C17 8 14.4 8 12 8Z"/></svg>',
-  username: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4.2"/><path d="M4.5 20.2c0-3.9 3.4-6.4 7.5-6.4s7.5 2.5 7.5 6.4c0 .4-.3.8-.8.8H5.3c-.5 0-.8-.4-.8-.8Z"/></svg>',
-  number: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.2 3.5h3.3l1.8 4.6-2.3 1.5a11.4 11.4 0 0 0 6.4 6.4l1.5-2.3 4.6 1.8v3.3a1.8 1.8 0 0 1-1.9 1.8A16.4 16.4 0 0 1 3.4 5.4a1.8 1.8 0 0 1 1.8-1.9Z"/></svg>',
-  stars: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.2 14.6 8.6l5.9.8-4.3 4.1 1 5.9L12 16.6l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8Z"/></svg>',
-};
+// Category bar: Gift · Username · Raqam · Stars
 const catLabel = c => t(`cat.${c}`).replace(/^[^\p{L}]+/u, '').trim();
 
 function categoryTabs() {
-  return `<div class="cat-bar cat-tiles" role="tablist">${['gift', 'username', 'number', 'stars'].map(c =>
-    `<button role="tab" class="cat-${c} ${state.category === c ? 'active' : ''}" data-cat="${c}" aria-selected="${state.category === c}">
-      <span class="cat-ico">${CAT_ICON[c]}</span><span class="cat-lbl">${esc(catLabel(c))}</span></button>`).join('')}</div>`;
+  // Tower-style text tabs: active one white with a blue underline, the rest muted
+  return `<div class="cat-text" role="tablist">${['gift', 'username', 'number', 'stars'].map(c =>
+    `<button role="tab" class="${state.category === c ? 'active' : ''}" data-cat="${c}" aria-selected="${state.category === c}">${esc(catLabel(c))}</button>`).join('')}</div>`;
 }
 
 function bindCategoryTabs(view) {
@@ -460,7 +454,9 @@ function filterPills() {
   const f = state.filters, n = f.collections.length;
   const pill = (attrs, label, on) => `<button class="fpill ${on ? 'on' : ''}" ${attrs}><span>${esc(label)}</span>${icons.chevronDown}</button>`;
   const colLabel = n === 1 ? f.collections[0].name : n ? `${t('catalog.collections_btn')} · ${n}` : t('catalog.collections_btn');
-  return `<div class="fpills">${pill('id="open-cols"', colLabel, n > 0)}
+  // Tower-style row: Collection · Model · Backdrop · Symbol (each opens the filter sheet on that group), then sort
+  const trait = k => pill(`data-pick="${k}"`, f[k] || t(`gift.${k}`), !!f[k]);
+  return `<div class="fpills">${pill('id="open-cols"', colLabel, n > 0)}${trait('model')}${trait('backdrop')}${trait('symbol')}
     <button class="fpill icon" id="open-sort" aria-label="${esc(t('catalog.sort_btn'))}">${icons.sort}</button></div>`;
 }
 
@@ -485,7 +481,7 @@ async function catalogView(view) {
     if (state.tab !== 'catalog' || state.segment !== 'all' || state.view) return;
     const nFil = filterCount();
     // price / item-number filters have no pill of their own: show them as removable chips
-    const chips = activeChips().filter(([k]) => !k.startsWith('col:'));
+    const chips = activeChips().filter(([k]) => !k.startsWith('col:') && !['model', 'backdrop', 'symbol'].includes(k));
     const chipRow = chips.length ? `<div class="chips">${chips.map(([k, label]) =>
       `<button class="chip active" data-rm="${esc(k)}">${esc(label)} ${icons.x}</button>`).join('')}</div>` : '';
     view.innerHTML = banner() + categoryTabs()
@@ -500,7 +496,7 @@ async function catalogView(view) {
     $('#open-filters', view).onclick = () => filtersSheet();
     $('#open-sort', view).onclick = sortSheet;
     $('#to-cols', view).onclick = () => { state.segment = 'collections'; haptic(); render(); };
-    view.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => filtersSheet(b.dataset.pick));
+    view.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => traitSheet(b.dataset.pick));
     view.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => removeChip(b.dataset.rm));
     $('#gq', view).oninput = e => { state.gq = e.target.value; drawBody(); };
     drawBody();
@@ -675,6 +671,45 @@ function filtersSheet(focus) {
         price_min: num('#p-min'), price_max: num('#p-max'), num_min: num('#n-min'), num_max: num('#n-max') });
       close(); applyFilters();
     };
+  });
+}
+
+// One trait as a dropdown-like sheet (Model / Fon / Belgi pills): tap a value → applied at once.
+function traitSheet(trait) {
+  const f = state.filters;
+  const one = f.collections.length === 1 ? f.collections[0].address : '';
+  const oneName = f.collections.length === 1 ? f.collections[0].name : '';
+  if (trait === 'model' && !one) {          // models only exist inside one collection
+    toast(t('catalog.model_hint'));
+    collectionsSheet();
+    return;
+  }
+  const label = t(`gift.${trait}`);
+  const html = `<h3 class="left-title">${esc(label)}${oneName ? ` <small class="muted" style="font-size:14px;font-weight:600">· ${esc(oneName)}</small>` : ''}</h3>
+    <div class="search">${icons.search}<input id="t-q" placeholder="${esc(t('catalog.search_attr'))}"></div>
+    <div id="t-list" class="acc-body t-list"><div class="skeleton" style="height:56px"></div><div class="skeleton mt" style="height:56px"></div></div>
+    ${f[trait] ? `<div class="sheet-footer"><button class="btn secondary" id="t-clear">${esc(t('catalog.reset'))}</button></div>` : ''}`;
+  openSheet(html, async (sheet, close) => {
+    const box = $('#t-list', sheet);
+    let values = [], colors = {};
+    const pick = val => { state.filters[trait] = state.filters[trait] === val ? '' : val; haptic(); close(); applyFilters(); };
+    const draw = () => {
+      const q = $('#t-q', sheet).value.trim().toLowerCase();
+      const list = values.filter(v => !q || v.value.toLowerCase().includes(q));
+      box.innerHTML = list.length ? list.slice(0, 300).map(v => `<button class="opt ${f[trait] === v.value ? 'on' : ''}" data-val="${esc(v.value)}">
+        <span class="radio"></span>${traitThumb(trait, v.value, oneName, colors)}<span class="grow">${esc(v.value)}</span>
+        ${v.perc ? `<em class="opt-perc">${esc(fmtPerc(v.perc))}%</em>` : ''}<span class="opt-count">${v.count || ''}</span></button>`).join('')
+        : `<p class="note center">${esc(t('catalog.no_results'))}</p>`;
+      box.querySelectorAll('[data-val]').forEach(b => b.onclick = () => pick(b.dataset.val));
+    };
+    $('#t-q', sheet).oninput = draw;
+    $('#t-clear', sheet)?.addEventListener('click', () => { state.filters[trait] = ''; close(); applyFilters(); });
+    try {
+      const r = await api.attributes(one);
+      values = (r.attributes.find(g => g.trait === trait) || {}).values || [];
+      colors = r.backdrop_colors || {};
+      draw();
+    } catch { box.innerHTML = `<p class="note">${esc(t('catalog.error'))}</p>`; }
   });
 }
 

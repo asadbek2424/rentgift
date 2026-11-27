@@ -1178,3 +1178,30 @@ body.scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overflow: 
 .gift-anim .ga-stage { position: absolute; inset: 0; }
 .gift-anim .ga-stage svg { width: 100% !important; height: 100% !important; }
 .gift-hero .gd-title { z-index: 2; }
+
+/* ---------------------------------------------------------------- category tabs: plain text like the Tower mockup */
+.cat-text { display: flex; gap: 20px; margin: 4px 2px 12px; padding: 0 2px; border-bottom: 1px solid rgba(255, 255, 255, .07);
+  overflow-x: auto; scrollbar-width: none; }
+.cat-text::-webkit-scrollbar { display: none; }
+.cat-text button { position: relative; flex: none; padding: 8px 0 10px; background: none; border: 0; font: inherit; font-size: 15px;
+  font-weight: 600; letter-spacing: -.1px; color: #7d8696; cursor: pointer; transition: color .2s; -webkit-tap-highlight-color: transparent; }
+.cat-text button.active { color: #fff; font-weight: 700; }
+.cat-text button.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 2px;
+  background: #2b8cff; box-shadow: 0 0 8px rgba(43, 140, 255, .6); }
+.fpill { max-width: 150px; }
+.t-list { margin-top: 10px; max-height: none; }
+
+/* ---------------------------------------------------------------- splash v3: loot chest scene (js/splash.js) */
+.sp2-logo, .sp2-name { z-index: 3; }
+.sp2-scene { position: absolute; left: 50%; bottom: calc(2% + var(--safe-bottom, 0px)); transform: translateX(-50%); aspect-ratio: 1000 / 1100;
+  width: min(108%, calc((100vh - 190px - var(--tg-top, 0px)) / 1.1)); }
+.sp2-it { position: absolute; opacity: 0; will-change: transform, opacity; }
+.sp2-it img { display: block; width: 100%; height: auto; transform-origin: 50% 100%; }
+.sp2-rays { position: absolute; left: 45%; top: 41%; width: 130%; aspect-ratio: 1; transform: translate(-50%, -50%); opacity: 0; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, rgba(150, 120, 255, .22) 0 7deg, transparent 7deg 22deg);
+  -webkit-mask-image: radial-gradient(closest-side, #000 15%, transparent 70%); mask-image: radial-gradient(closest-side, #000 15%, transparent 70%); }
+.sp2-burst { position: absolute; left: 45%; top: 41%; width: 70%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; opacity: 0; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255, 240, 200, .95), rgba(190, 120, 255, .55) 40%, rgba(80, 160, 255, .2) 65%, transparent 80%); }
+.sp2-inner { position: absolute; left: 17%; top: 35.5%; width: 52%; height: 13%; border-radius: 50%; opacity: 0; pointer-events: none; filter: blur(4px);
+  background: radial-gradient(closest-side, #fff3c4 0%, #ffc86b 30%, rgba(255, 120, 190, .85) 55%, rgba(150, 90, 255, .55) 75%, transparent 100%); }
+.sp2-spark { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px 2px #9fd8ff; opacity: 0; pointer-events: none; }
