@@ -195,7 +195,7 @@ async def me(user: CurrentUser = Depends(current_user)):
                     "admin_wallet": s.admin_wallet_address if user.is_admin else "",
                     "admin_wallet_raw": _raw(s.admin_wallet_address) if user.is_admin else "", "demo": s.demo_mode,
                     "manifest_url": f"{s.webapp_base}/tonconnect-manifest.json",
-                    "admin_panel_url": s.admin_panel_url if user.is_admin else ""}}
+                    "admin_panel_url": s.panel_url if user.is_admin else ""}}
 
 
 class LangBody(BaseModel):

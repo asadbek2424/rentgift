@@ -503,3 +503,14 @@ def test_per_day_markup_example():
     q = make_quote(5_000_000, 3, config)          # 0.005 TON/day × 40 000 = 200 so'm/day
     assert (q.per_day_uzs, q.rent_uzs, q.service_fee_uzs, q.amount_uzs) == (1200, 3600, 1800, 5400)
     assert q.profit_uzs == 5400 - 600             # cost is the real Marketapp price: 200 × 3
+
+
+def test_panel_url_defaults_to_builtin_admin(tmp_path, monkeypatch):
+    from app.config import Settings
+    s = Settings(webapp_url="https://bot.up.railway.app/", _env_file=None)
+    # the repo has admin-panel/dist after a build; Railway has admin_dist — either way it is /admin
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent
+    built = any((root / d / "index.html").exists() for d in ("admin_dist", "admin-panel/dist"))
+    assert s.panel_url == ("https://bot.up.railway.app/admin" if built else "")
+    assert Settings(webapp_url="https://bot.up.railway.app", admin_panel_url="https://x.vercel.app/", _env_file=None).panel_url == "https://x.vercel.app"

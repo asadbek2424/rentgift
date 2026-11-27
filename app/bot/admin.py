@@ -55,9 +55,10 @@ async def panel_link(message: Message) -> None:
     from aiogram.types import InlineKeyboardButton
     from ..panel import issue_link_token
     settings = get_settings()
-    base = settings.admin_panel_url.strip().rstrip("/")
+    base = settings.panel_url
     if not base.startswith("https://"):
-        await message.answer("ADMIN_PANEL_URL o'rnatilmagan (masalan https://giftrent-admin.vercel.app).")
+        await message.answer("Admin panel topilmadi: WEBAPP_URL https:// bo'lishi va panel build qilingan bo'lishi kerak "
+                             "(Railway'da Dockerfile buni o'zi qiladi) yoki ADMIN_PANEL_URL ni qo'ying.")
         return
     token = issue_link_token(message.from_user.id)
     url = f"{base}/#/login?t={token}&api={quote(settings.webapp_base, safe='')}"

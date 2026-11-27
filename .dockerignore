@@ -1,8 +1,11 @@
 .env
-data/
+/data/
 tests/
 docs/
 .git/
 __pycache__/
 *.session
-admin-panel
+admin-panel/node_modules
+admin-panel/dist
+admin-panel/.env*
+*.zip

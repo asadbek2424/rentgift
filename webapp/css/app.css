@@ -969,3 +969,43 @@ body { background: var(--bg); }
   filter: drop-shadow(0 26px 40px rgba(0, 0, 0, .55)); }
 .sp2-chest img { display: block; width: 100%; height: auto; }
 @media (max-height: 640px) { .sp2-chest { width: 68%; } }
+
+/* =====================================================================
+   Home screen 1:1 with the mockup: glass promo banner, category tiles,
+   floating bottom navigation
+   ===================================================================== */
+/* promo banner */
+.banner.promo { display: flex; align-items: center; gap: 4px; min-height: 118px; padding: 16px 8px 16px 18px; border-radius: 22px; margin: 2px 0 14px;
+  background: radial-gradient(120% 140% at 100% 50%, rgba(43, 140, 255, .28), transparent 55%), linear-gradient(135deg, #12203d 0%, #0d1428 60%, #0b1122 100%);
+  border: 1.5px solid rgba(64, 150, 255, .55);
+  box-shadow: 0 0 0 1px rgba(64, 150, 255, .15), 0 0 26px -6px rgba(43, 140, 255, .65), inset 0 1px 0 rgba(255, 255, 255, .06); }
+.promo-txt { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.promo-txt b { display: block; font-size: 22px; line-height: 1.15; font-weight: 800; letter-spacing: -.02em; color: #fff; }
+.promo-cta { display: inline-flex !important; align-items: center; gap: 4px; margin-top: 12px !important; height: 30px; padding: 0 10px 0 13px;
+  border-radius: 999px; font-size: 13px !important; font-weight: 700 !important; opacity: 1 !important; color: #dfe9ff;
+  background: rgba(255, 255, 255, .06); border: 1px solid rgba(110, 170, 255, .45); }
+.promo-cta svg { width: 14px; height: 14px; }
+.promo-art { flex: none; width: 46%; max-width: 190px; margin-right: -4px; }
+.promo-art svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 8px 18px rgba(30, 110, 255, .45)); }
+
+/* category tiles: 4 separate cards, icon above label */
+.cat-bar.cat-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
+.cat-tiles button { flex-direction: column; justify-content: center; gap: 6px; height: 76px; padding: 8px 4px; border-radius: 18px;
+  background: linear-gradient(180deg, #171d29, #121722); border: 1.5px solid rgba(255, 255, 255, .06); color: #fff; font-size: 13.5px; font-weight: 700; }
+.cat-tiles .cat-ico { width: 28px; height: 28px; }
+.cat-tiles .cat-lbl { overflow: visible; }
+.cat-tiles button.active { background: linear-gradient(180deg, rgba(31, 140, 245, .26), rgba(31, 140, 245, .08));
+  border-color: rgba(64, 160, 255, .95); box-shadow: 0 0 22px -4px rgba(31, 140, 245, .85), inset 0 0 16px rgba(31, 140, 245, .22); }
+.cat-tiles button.active::after { display: none; }
+.cat-tiles .cat-gift .cat-ico { color: #48a6ff; }
+@media (max-width: 360px) { .cat-tiles button { font-size: 12px; height: 70px; } .cat-tiles .cat-ico { width: 24px; height: 24px; } }
+
+/* floating bottom navigation with a highlighted active tile */
+.tabbar { left: 8px; right: 8px; bottom: calc(8px + var(--safe-bottom)); max-width: 544px; padding: 6px; gap: 4px; border-radius: 24px;
+  background: rgba(20, 25, 35, .92); border: 1px solid rgba(110, 150, 220, .16); box-shadow: 0 12px 30px rgba(0, 0, 0, .55); }
+.tab { border-radius: 18px; padding: 8px 2px 7px; color: #c9d1de; font-size: 10.5px; letter-spacing: .04em; }
+.tab svg { width: 24px; height: 24px; color: #c9d1de; }
+.tab.active { color: #fff; background: linear-gradient(180deg, rgba(31, 140, 245, .30), rgba(31, 140, 245, .10));
+  box-shadow: inset 0 0 0 1.5px rgba(64, 160, 255, .85), 0 0 18px -4px rgba(31, 140, 245, .8); }
+.tab.active svg { color: #4aa8ff; filter: drop-shadow(0 0 6px rgba(74, 168, 255, .8)); }
+.view { padding-bottom: calc(var(--nav-h) + 40px + var(--safe-bottom)); }

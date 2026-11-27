@@ -226,12 +226,38 @@ export async function render() {
 }
 
 // ------------------------------------------------------------------ catalog
+// Promo banner: dark glass card with a glowing blue edge, CTA pill and 3D-ish bank cards on a light ring.
+const BANNER_ART = `<svg viewBox="0 0 170 120" aria-hidden="true">
+  <defs>
+    <linearGradient id="bc1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5fb4ff"/><stop offset=".55" stop-color="#2a7cf0"/><stop offset="1" stop-color="#1650c8"/></linearGradient>
+    <linearGradient id="bc2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3f8ff5" stop-opacity=".95"/><stop offset="1" stop-color="#1b46a8" stop-opacity=".9"/></linearGradient>
+    <linearGradient id="bchip" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe59a"/><stop offset="1" stop-color="#e5a52a"/></linearGradient>
+    <radialGradient id="bring" cx=".5" cy=".5" r=".5"><stop offset=".6" stop-color="#3da0ff" stop-opacity="0"/><stop offset=".86" stop-color="#5cc3ff" stop-opacity=".9"/><stop offset="1" stop-color="#5cc3ff" stop-opacity="0"/></radialGradient>
+    <filter id="bglow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3"/></filter>
+  </defs>
+  <ellipse cx="88" cy="96" rx="72" ry="16" fill="url(#bring)" filter="url(#bglow)"/>
+  <ellipse cx="88" cy="96" rx="66" ry="13" fill="none" stroke="#7fd2ff" stroke-opacity=".75" stroke-width="1.4"/>
+  <g transform="rotate(-12 100 52)">
+    <rect x="58" y="18" width="92" height="58" rx="9" fill="url(#bc2)" stroke="#9fd3ff" stroke-opacity=".45"/>
+    <rect x="58" y="30" width="92" height="9" fill="#0d2a66" opacity=".55"/>
+  </g>
+  <g transform="rotate(-8 80 66)">
+    <rect x="34" y="38" width="96" height="60" rx="9" fill="url(#bc1)" stroke="#bfe3ff" stroke-opacity=".6"/>
+    <path d="M34 47 Q82 30 130 52" stroke="#fff" stroke-opacity=".18" stroke-width="10" fill="none"/>
+    <rect x="45" y="55" width="17" height="13" rx="3" fill="url(#bchip)"/>
+    <path d="M49 55v13M58 55v13M45 61.5h17" stroke="#b8801a" stroke-width=".8" opacity=".7"/>
+    <path d="M103 56a6 6 0 0 1 0 9M108 53a10 10 0 0 1 0 15M113 50a14 14 0 0 1 0 21" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" opacity=".9"/>
+    <rect x="45" y="80" width="34" height="4" rx="2" fill="#fff" opacity=".55"/>
+  </g>
+  <circle cx="132" cy="86" r="13" fill="#2b8cff" stroke="#bfe3ff" stroke-width="2"/>
+  <circle cx="132" cy="86" r="17" fill="#2b8cff" opacity=".25" filter="url(#bglow)"/>
+  <path d="m126 86 4 4 8-8" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
 function banner() {
-  return `<button class="banner" id="banner">
-    <svg class="spark" style="right:84px;top:10px;width:14px" viewBox="0 0 10 10"><path d="M5 0l1.2 3.8L10 5 6.2 6.2 5 10 3.8 6.2 0 5l3.8-1.2z" fill="#fff"/></svg>
-    <svg class="spark" style="right:18px;bottom:8px;width:10px" viewBox="0 0 10 10"><path d="M5 0l1.2 3.8L10 5 6.2 6.2 5 10 3.8 6.2 0 5l3.8-1.2z" fill="#fff"/></svg>
-    <div><b>${esc(t('banner.title'))}</b><span>${esc(t('banner.subtitle'))} ›</span></div>
-    <div class="banner-art">${art.card}</div></button>`;
+  return `<button class="banner promo" id="banner">
+    <div class="promo-txt"><b>${esc(t('banner.title'))}</b><span class="promo-cta">${esc(t('banner.subtitle'))} ${icons.chevronRight}</span></div>
+    <div class="promo-art">${BANNER_ART}</div></button>`;
 }
 
 // Category bar (Gift · Username · Raqam · Stars) with glowing outline icons.
@@ -244,8 +270,8 @@ const CAT_ICON = {
 const catLabel = c => t(`cat.${c}`).replace(/^[^\p{L}]+/u, '').trim();
 
 function categoryTabs() {
-  return `<div class="cat-bar" role="tablist">${['gift', 'username', 'number', 'stars'].map((c, i) =>
-    `${i ? '<i class="cat-sep"></i>' : ''}<button role="tab" class="cat-${c} ${state.category === c ? 'active' : ''}" data-cat="${c}" aria-selected="${state.category === c}">
+  return `<div class="cat-bar cat-tiles" role="tablist">${['gift', 'username', 'number', 'stars'].map(c =>
+    `<button role="tab" class="cat-${c} ${state.category === c ? 'active' : ''}" data-cat="${c}" aria-selected="${state.category === c}">
       <span class="cat-ico">${CAT_ICON[c]}</span><span class="cat-lbl">${esc(catLabel(c))}</span></button>`).join('')}</div>`;
 }
 

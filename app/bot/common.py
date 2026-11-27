@@ -58,7 +58,7 @@ def webapp_button(text: str, **params) -> InlineKeyboardButton | None:
 
 def admin_button(text: str, order: int | None = None) -> InlineKeyboardButton | None:
     """Opens the standalone admin panel (ADMIN_PANEL_URL) in the browser; falls back to the Mini App admin tab."""
-    base = get_settings().admin_panel_url.strip().rstrip("/")
+    base = get_settings().panel_url
     if base.startswith("https://"):
         return InlineKeyboardButton(text=text, url=f"{base}/#/orders?order={order}" if order else f"{base}/#/")
     return webapp_button(text, admin=1, **({"order": order} if order else {}))

@@ -14,7 +14,8 @@ export default function Login() {
   const [code, setCode] = useState(params.get('t') || '');
   const [apiUrl, setApiUrl] = useState(params.get('api') || getApiBase());
   const [mode, setMode] = useState('code');
-  const [showServer, setShowServer] = useState(!getApiBase());
+  // Served by the bot itself (/admin/) → API is the same origin, nothing to configure.
+  const [showServer, setShowServer] = useState(!getApiBase() && !location.pathname.startsWith('/admin'));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [adminId, setAdminId] = useState(() => { try { return localStorage.getItem('gr_admin_id') || ''; } catch { return ''; } });

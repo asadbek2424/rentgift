@@ -251,3 +251,15 @@ locales/          uz.json ru.json en.json (bot va Mini App uchun umumiy)
 webapp/           Mini App (HTML/CSS/JS, build kerak emas)
 tests/
 ```
+
+## Admin panel — bot bilan bitta Railway servisida
+`Dockerfile` panelni deploy paytida o'zi yig'adi va bot uni shu manzilda ochadi:
+
+```
+https://<bot>.up.railway.app/        → Mini App
+https://<bot>.up.railway.app/admin/  → Admin panel
+```
+
+Qo'shimcha sozlash shart emas: `ADMIN_PANEL_URL` bo'sh bo'lsa, bot tugmalari va `/panel` buyrug'i avtomatik `/admin/` ni ochadi.
+`VITE_API_URL`, `ADMIN_PANEL_ORIGINS` kerak emas (bir xil domen). Panelga kirish: botga `/panel` → «🔐 Panelni ochish»,
+yoki Telegram ID → kod, yoki `ADMIN_PANEL_PASSWORD`. Xohlasangiz, panelni Vercel'ga ham alohida qo'yish mumkin (`admin-panel/README.md`).

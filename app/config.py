@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     use_rent_events: bool = True             # follow Marketapp /v1/rent/events/ instead of polling /my-rented/ only
 
     # --- Standalone admin panel (separate site: Vercel / Railway) ---------------
-    admin_panel_url: str = ""                # e.g. https://giftrent-admin.vercel.app — bot buttons open it
+    admin_panel_url: str = ""                # empty = the panel built into this server at <WEBAPP_URL>/admin/; or e.g. a Vercel URL
     admin_panel_origins: str = ""            # extra CORS origins, comma separated (admin_panel_url is added automatically)
     admin_secret: str = ""                   # signs admin sessions; empty = derived from BOT_TOKEN
     admin_panel_password: str = ""           # optional fallback login (min 8 chars) when the bot can't send codes
@@ -156,6 +156,17 @@ class Settings(BaseSettings):
     @property
     def webapp_base(self) -> str:
         return self.webapp_url.rstrip("/")
+
+    @property
+    def panel_url(self) -> str:
+        """Where the admin panel lives: ADMIN_PANEL_URL if set, otherwise the panel served by this bot at /admin/."""
+        if self.admin_panel_url.strip():
+            return self.admin_panel_url.strip().rstrip("/")
+        from pathlib import Path
+        root = Path(__file__).resolve().parent.parent
+        if any((root / d / "index.html").exists() for d in ("admin_dist", "admin-panel/dist")):
+            return f"{self.webapp_base}/admin"
+        return ""
 
     @property
     def admin_origins(self) -> list[str]:

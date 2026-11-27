@@ -113,9 +113,25 @@ def create_app() -> FastAPI:
         # Telegram's WebView caches /static aggressively; force revalidation (ETag → cheap 304)
         # so a redeploy is picked up immediately instead of mixing new HTML with old CSS/JS.
         response = await call_next(request)
-        if request.url.path.startswith(("/static/", "/locales/")):
+        path = request.url.path
+        if path.startswith(("/static/", "/locales/")) or path in ("/admin/", "/admin/index.html"):
             response.headers["Cache-Control"] = "no-cache"
+        if path.startswith("/admin"):
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["X-Robots-Tag"] = "noindex, nofollow"
+            response.headers["Referrer-Policy"] = "no-referrer"
         return response
+
+    # Admin panel (React build) at /admin/ — built by the Dockerfile into admin_dist/, or `npm run build` locally.
+    admin_dir = next((d for d in (ROOT / "admin_dist", ROOT / "admin-panel" / "dist") if (d / "index.html").exists()), None)
+    if admin_dir is not None:
+        from fastapi.responses import RedirectResponse
+
+        @app.get("/admin", include_in_schema=False)
+        async def admin_redirect():
+            return RedirectResponse("/admin/")
+
+        app.mount("/admin", StaticFiles(directory=admin_dir, html=True), name="admin")
 
     app.mount("/locales", StaticFiles(directory=ROOT / "locales"), name="locales")
     app.mount("/static", StaticFiles(directory=WEBAPP), name="static")
