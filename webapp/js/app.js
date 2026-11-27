@@ -569,9 +569,49 @@ function collectionsSheet() {
   });
 }
 
+// Pictures for the filter pickers. Model/Symbol art comes from the public gift dataset (cdn.changes.tg);
+// backdrop colours come from the server (/api/attributes → backdrop_colors). Everything has a fallback.
+const GIFT_CDN = 'https://cdn.changes.tg/gifts';
+function hashHue(text) { let h = 0; for (const c of text || '') h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; }
+// Fallback when the colour list is unreachable: guess from colour words in the backdrop name ("Ice Blue", "Mint Green").
+const COLOR_WORDS = [['black', '#3a3a3e', '#141416'], ['onyx', '#3a3a3e', '#141416'], ['white', '#e9edf2', '#a9b0ba'], ['ivory', '#efe6cf', '#b9ab86'],
+  ['silver', '#c4ccd6', '#7f8a98'], ['gray', '#9aa1ab', '#5b626c'], ['grey', '#9aa1ab', '#5b626c'], ['navy', '#3b5c8c', '#1f3152'],
+  ['ice', '#bfe3f5', '#6aa8c9'], ['sky', '#7cc4f0', '#3b84b8'], ['blue', '#4a90e2', '#22508f'], ['cyan', '#4fd1e0', '#1f8a99'],
+  ['teal', '#3fb6a8', '#1d6e66'], ['turquoise', '#46cfc0', '#1f857a'], ['mint', '#8fe0b8', '#3f9a74'], ['emerald', '#3fbf7f', '#1c7048'],
+  ['green', '#5cbf5c', '#2b6e2b'], ['lime', '#b5e05a', '#6f9a22'], ['olive', '#a7a85a', '#5f6029'], ['jade', '#4fb38a', '#25694f'],
+  ['gold', '#f1c75a', '#a8781c'], ['yellow', '#f5d94e', '#b0961c'], ['amber', '#f2b24a', '#a9681a'], ['orange', '#f39a4a', '#b0561a'],
+  ['carrot', '#f39a4a', '#b0561a'], ['caramel', '#d9a066', '#8f5b2b'], ['brown', '#a87956', '#5e3d26'], ['chocolate', '#8b5a3c', '#4a2c1b'],
+  ['coffee', '#9c6b4a', '#553521'], ['red', '#e25b5b', '#8f2424'], ['crimson', '#d6404f', '#7a1520'], ['ruby', '#d0405a', '#7a1428'],
+  ['rose', '#e88aa6', '#a0465f'], ['pink', '#f29ac1', '#b04f7c'], ['coral', '#f58b78', '#b04a39'], ['peach', '#f6b69a', '#b9705a'],
+  ['purple', '#9b6ce0', '#55309a'], ['violet', '#9b6ce0', '#55309a'], ['lavender', '#b9a4ec', '#6f5aa8'], ['lilac', '#c3a2e6', '#7a5aa0'],
+  ['plum', '#9a5a8c', '#55284c'], ['indigo', '#6a6fe0', '#33379a'], ['midnight', '#3a4a7a', '#151d38'], ['sapphire', '#3f6fd6', '#1c3a85']];
+function guessBackdrop(name) {
+  const n = (name || '').toLowerCase();
+  const hit = COLOR_WORDS.find(([w]) => n.includes(w));
+  if (hit) return [hit[1], hit[2]];
+  const h = hashHue(name);
+  return [`hsl(${h} 55% 58%)`, `hsl(${h} 60% 32%)`];
+}
+// "0.1%" style like gift lists: one decimal from 1% up, two below 1% (trailing zeros dropped)
+const fmtPerc = p => { const n = Number(p); if (!n) return ''; const v = n >= 1 ? n.toFixed(1) : n.toFixed(2); return v.replace(/\.?0+$/, ''); };
+function traitThumb(trait, value, collection, colors) {
+  if (trait === 'backdrop') {
+    const c = colors?.[value] || guessBackdrop(value);
+    const bg = `radial-gradient(circle at 35% 30%, ${c[0]}, ${c[1]})`;
+    return `<span class="opt-thumb swatch" style="background:${bg}"></span>`;
+  }
+  if (!collection) return `<span class="opt-thumb letter">${esc((value || '?')[0])}</span>`;
+  const kind = trait === 'model' ? 'models' : 'patterns';
+  const src = `${GIFT_CDN}/${kind}/${encodeURIComponent(collection)}/png/${encodeURIComponent(value)}.png`;
+  return `<span class="opt-thumb ${trait}"><img src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer"
+    onerror="this.parentNode.classList.add('letter');this.parentNode.textContent='${esc((value || '?')[0]).replace(/'/g, '')}'"></span>`;
+}
+
 function filtersSheet(focus) {
   const f = { ...state.filters };
   const one = f.collections.length === 1 ? f.collections[0].address : '';
+  const oneName = f.collections.length === 1 ? f.collections[0].name : '';
+  let colors = {};
   const html = `<h3 class="left-title">${esc(t('catalog.filters_btn'))}</h3>
     <div class="f-title">${esc(t('catalog.price'))}</div>
     <div class="pair"><input class="input" id="p-min" inputmode="numeric" placeholder="${esc(t('catalog.from'))}" value="${esc(f.price_min)}">
@@ -597,7 +637,8 @@ function filtersSheet(focus) {
         return `<div class="acc"><button class="acc-head" data-acc="${g.trait}"><b>${esc(label)}${f[g.trait] ? ` · <span class="accent">${esc(f[g.trait])}</span>` : ''}</b>
           <span class="muted">${g.values.length} ${expanded ? '▴' : '▾'}</span></button>
           ${expanded ? `<div class="acc-body">${values.slice(0, 200).map(v => `<button class="opt ${f[g.trait] === v.value ? 'on' : ''}" data-trait="${g.trait}" data-val="${esc(v.value)}">
-            <span class="radio"></span><span class="grow">${esc(v.value)}</span><span class="muted">${v.count || ''}</span></button>`).join('')}</div>` : ''}</div>`;
+            <span class="radio"></span>${traitThumb(g.trait, v.value, oneName, colors)}<span class="grow">${esc(v.value)}</span>
+            ${v.perc ? `<em class="opt-perc">${esc(fmtPerc(v.perc))}%</em>` : ''}<span class="opt-count">${v.count || ''}</span></button>`).join('')}</div>` : ''}</div>`;
       }).join('');
       box.querySelectorAll('[data-acc]').forEach(b => b.onclick = () => { open.has(b.dataset.acc) ? open.delete(b.dataset.acc) : open.add(b.dataset.acc); draw(); });
       box.querySelectorAll('[data-trait]').forEach(b => b.onclick = () => {
@@ -605,7 +646,7 @@ function filtersSheet(focus) {
       });
     };
     $('#a-q', sheet).oninput = draw;
-    try { groups = (await api.attributes(one)).attributes; } catch { box.innerHTML = `<p class="note">${esc(t('catalog.error'))}</p>`; }
+    try { const r = await api.attributes(one); groups = r.attributes; colors = r.backdrop_colors || {}; } catch { box.innerHTML = `<p class="note">${esc(t('catalog.error'))}</p>`; }
     if (groups.length) draw();
     const num = id => $(id, sheet).value.replace(/[^\d]/g, '');
     $('#f-reset', sheet).onclick = () => {
@@ -643,7 +684,7 @@ function breakdown(perDay, days, fee, total, add = 0) {
 // ------------------------------------------------------------------ gift sheet
 function giftSheet(g) {
   let days = Math.max(g.min_days, Math.min(g.max_days, 1));
-  const attrs = [['gift.model', g.model], ['gift.backdrop', g.backdrop], ['gift.symbol', g.symbol]].filter(([, v]) => v);
+  const attrs = [['model', g.model], ['symbol', g.symbol], ['backdrop', g.backdrop]].filter(([, v]) => v);
   const other = g.category && g.category !== 'gift';
   const title = !other && g.collection && g.number ? [g.collection, `#${g.number}`] : [g.name, ''];
   const perDay = g.per_day_uzs != null ? Number(g.per_day_uzs).toLocaleString('ru-RU').replace(/,/g, ' ') : '—';
@@ -652,7 +693,7 @@ function giftSheet(g) {
       <div class="gift-hero">${other ? nameTile(g) : giftImage(g.image, g.name)}
         <div class="gd-title"><h3>${esc(title[0])}</h3>${title[1] ? `<span>${esc(title[1])}</span>` : ''}</div></div>
       <div class="attr-table">
-        ${attrs.map(([k, v]) => `<div class="attr-row"><span>${esc(t(k))}</span><b>${esc(v)}</b></div>`).join('')}
+        ${attrs.map(([k, v]) => `<div class="attr-row"><span>${esc(t(`gift.${k}`))}</span><b>${esc(v)}<em class="pct rar loading" data-tr="${k}">…</em></b></div>`).join('')}
         <div class="attr-row"><span>${esc(t('ui.price_day'))}</span><b>${esc(perDay)} <em class="pct">${esc(t('common.sum'))}</em></b></div>
         <div class="attr-row"><span>${esc(t('gift.duration'))}</span><b><em class="pct">${esc(t('gift.limits', { min: g.min_days, max: g.max_days }))}</em></b></div>
       </div>
@@ -670,6 +711,17 @@ function giftSheet(g) {
     <div class="sticky-cta"><button class="btn" id="rent">${esc(t('gift.rent'))}</button></div>`;
   openSheet(html, (sheet, close) => {
     sheet.classList.add('gift-sheet');
+    // rarity of each trait in the collection (Marketapp collection attributes, cached on the server)
+    if (attrs.length && !other) {
+      api.traits(g.address).then(r => {
+        (r.traits || []).forEach(x => {
+          const chip = sheet.querySelector(`[data-tr="${x.trait}"]`);
+          if (!chip) return;
+          if (x.perc) { chip.textContent = `${x.perc}%`; chip.classList.remove('loading'); } else chip.remove();
+        });
+        sheet.querySelectorAll('.rar.loading').forEach(c => c.remove());
+      }).catch(() => sheet.querySelectorAll('.rar').forEach(c => c.remove()));
+    }
     sheet.parentElement.classList.add('gift-ov');   // see-through backdrop: the gift floats over the blurred app
     let seq = 0;
     $('#gd-share', sheet).onclick = () => {

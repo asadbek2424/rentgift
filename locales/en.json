@@ -80,7 +80,7 @@
   },
   "gift": {
     "model": "Model",
-    "backdrop": "Backdrop",
+    "backdrop": "Background",
     "symbol": "Symbol",
     "duration": "Rental period",
     "per_day": "Price per day",

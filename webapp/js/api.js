@@ -33,6 +33,7 @@ export const api = {
   attributes: collection => request('GET', '/api/attributes' + (collection ? `?collection=${encodeURIComponent(collection)}` : '')),
   gifts: (params = {}) => request('GET', '/api/gifts?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v))),
   gift: address => request('GET', `/api/gifts/${encodeURIComponent(address)}`),
+  traits: address => request('GET', `/api/gifts/${encodeURIComponent(address)}/traits`),
   quote: (nft, days) => request('GET', `/api/quote?${new URLSearchParams({ nft, days })}`),
   createOrder: (nft_address, days) => request('POST', '/api/orders', { nft_address, days }),
   orders: () => request('GET', '/api/orders'),

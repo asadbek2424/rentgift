@@ -282,12 +282,20 @@ async def attributes(collection: str | None = None, user: CurrentUser = Depends(
         trait = str(group.get("trait_type", ""))
         if trait.lower() not in ("model", "backdrop", "symbol") or (not collection and trait.lower() == "model"):
             continue
-        values = [{"value": str(v.get("value")), "count": int(v.get("count") or 0)} for v in group.get("values") or []
-                  if v.get("value") not in (None, "")]
-        values.sort(key=lambda v: (-v["count"], v["value"].lower()))
+        raw_values = [v for v in group.get("values") or [] if v.get("value") not in (None, "")]
+        total = sum(int(v.get("count") or 0) for v in raw_values)
+        values = []
+        for v in raw_values:
+            count = int(v.get("count") or 0)
+            perc = float(v.get("perc") or 0) or (count / total * 100 if total else 0)
+            values.append({"value": str(v.get("value")), "count": count, "perc": round(perc, 2) if perc else None})
+        # rarest first (like the gift-changes lists: "Imposter — 0.1%"); unknown rarity at the end
+        values.sort(key=lambda v: (v["perc"] is None, v["perc"] or 0, v["value"].lower()))
         out.append({"trait": trait.lower(), "values": values[:1000]})
     order = {"model": 0, "backdrop": 1, "symbol": 2}
-    return {"attributes": sorted(out, key=lambda g: order[g["trait"]])}
+    from . import gift_assets
+    colors = await gift_assets.backdrops()
+    return {"attributes": sorted(out, key=lambda g: order[g["trait"]]), "backdrop_colors": colors}
 
 
 def _decode_cursor(raw: str | None) -> dict | None:
@@ -415,6 +423,18 @@ async def gift_detail(address: str, user: CurrentUser = Depends(current_user)):
             "price_per_day": listing["price_per_day"], "min_duration": listing["min_duration"],
             "max_duration": listing["max_duration"]}
     return gift_card(item, config)
+
+
+@router.get("/gifts/{address}/traits")
+async def gift_traits(address: str, user: CurrentUser = Depends(current_user)):
+    """Model / Symbol / Backdrop of a gift with their rarity in the collection (e.g. 1.5%)."""
+    from . import rarity
+    ctx = get_context()
+    try:
+        listing = await svc._listing(ctx, address)
+    except svc.ServiceError as exc:
+        raise _error(exc) from None
+    return {"traits": await rarity.traits(ctx, listing)}
 
 
 @router.get("/quote")

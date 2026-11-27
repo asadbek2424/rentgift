@@ -155,8 +155,11 @@ function bindWho(view, h, kind, onChange) {
   let current = null, seq = 0;
   const chip = r => {
     const self = me.username && r.username.toLowerCase() === me.username.toLowerCase();
-    const ava = r.photo ? `<img src="${h.esc(r.photo)}" alt="" referrerpolicy="no-referrer">` : self && me.photo_url ? `<img src="${h.esc(me.photo_url)}" alt="">`
-      : `<span>${h.esc((r.name || r.username || '?')[0].toUpperCase())}</span>`;
+    const initial = h.esc((r.name || r.username || '?').trim()[0]?.toUpperCase() || '?');
+    const okUrl = u => /^(https:\/\/|data:image\/)/.test(u || '');
+    const src = okUrl(r.photo) ? r.photo : self && okUrl(me.photo_url) ? me.photo_url : '';
+    const ava = src ? `<img src="${h.esc(src)}" alt="" referrerpolicy="no-referrer" data-i="${initial}" onerror="this.parentNode.textContent=this.dataset.i">`
+      : `<span>${initial}</span>`;
     box.innerHTML = `<div class="who-chip"><span class="who-ava">${ava}</span><b>${h.esc(r.name || '@' + r.username)}</b>
       <small>${self ? h.esc(t('stars.you')) : '@' + h.esc(r.username)}</small><button class="who-x" aria-label="change">${icons.close}</button></div>`;
     $('.who-x', box).onclick = () => { h.haptic(); input(''); };

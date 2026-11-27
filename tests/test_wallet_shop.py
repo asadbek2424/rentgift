@@ -223,3 +223,10 @@ def test_hot_wallet_buys_stars_automatically():
         await shop.admin_refund(ctx, p.id)
         assert await wallet.balance_of(350) == before + p.price_uzs
     asyncio.run(scenario())
+
+
+def test_recipient_photo_html_is_cleaned():
+    from app.purchases import photo_url
+    assert photo_url('<img src="https://cdn4.cdn-telegram.org/file/abc.jpg" />') == "https://cdn4.cdn-telegram.org/file/abc.jpg"
+    assert photo_url('<img src="//cdn4.telesco.pe/f.jpg">') == "https://cdn4.telesco.pe/f.jpg"
+    assert photo_url('<svg><text>A</text></svg>') == "" and photo_url("javascript:alert(1)") == ""

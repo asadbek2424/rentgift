@@ -7,6 +7,7 @@ leaves the wallet is refunded to the balance automatically.
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import re
@@ -143,6 +144,23 @@ async def premium_info(ctx: AppContext) -> dict:
     return {"plans": plans}
 
 
+def photo_url(raw) -> str:
+    """Fragment returns the avatar as an HTML snippet (``<img src="https://…">``), sometimes as a bare URL or an
+    inline SVG with initials. Keep only a usable image URL (https:// or data:image/…); anything else → ""."""
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    m = re.search(r"""<img[^>]+src=["']([^"']+)["']""", text, re.IGNORECASE)
+    if m:
+        text = m.group(1).strip()
+    text = html.unescape(text)
+    if text.startswith("//"):
+        text = "https:" + text
+    if re.match(r"^https://[^\s<>\"']+$", text) or re.match(r"^data:image/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$", text):
+        return text
+    return ""
+
+
 async def recipient(ctx: AppContext, kind: str, raw_username: str) -> dict:
     username = clean_username(raw_username)
     key = f"rcp:{kind}:{username.lower()}"
@@ -156,7 +174,7 @@ async def recipient(ctx: AppContext, kind: str, raw_username: str) -> dict:
                 raise PurchaseError("recipient_not_found", 404) from None
             raise PurchaseError("marketapp", 503) from None
         found = _store(key, {"username": username, "name": str((response or {}).get("name") or username),
-                             "photo": str((response or {}).get("photo") or "")})
+                             "photo": photo_url((response or {}).get("photo"))})
     return found
 
 

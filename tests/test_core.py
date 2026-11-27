@@ -531,3 +531,39 @@ def test_panel_url_defaults_to_builtin_admin(tmp_path, monkeypatch):
     built = any((root / d / "index.html").exists() for d in ("admin_dist", "admin-panel/dist"))
     assert s.panel_url == ("https://bot.up.railway.app/admin" if built else "")
     assert Settings(webapp_url="https://bot.up.railway.app", admin_panel_url="https://x.vercel.app/", _env_file=None).panel_url == "https://x.vercel.app"
+
+
+def test_trait_rarity_from_collection_attributes():
+    import asyncio as _a
+    from app import rarity
+    from app.config import get_settings
+    from app.context import AppContext, NullNotifier
+    from app.marketapp import DemoMarketapp
+    from app.pricing import RateProvider
+
+    class Market(DemoMarketapp):
+        async def collection_attributes(self, collection_address):
+            assert collection_address == "EQbear"
+            return [{"trait_type": "Model", "values": [{"value": "Unicorns", "perc": 1.5}, {"value": "Other", "perc": 98.5}]},
+                    {"trait_type": "Symbol", "values": [{"value": "Flower", "count": 11}, {"value": "Star", "count": 989}]},
+                    {"trait_type": "Backdrop", "values": [{"value": "Emerald", "perc": 2.0}]}]
+
+        async def gift_collections(self):
+            return [{"name": "Nail Bracelet", "address": "EQbear"}]
+
+    ctx = AppContext(settings=get_settings(), market=Market(), rates=RateProvider(), notifier=NullNotifier())
+    listing = {"name": "Nail Bracelet #4596", "collection_address": "",       # found by name, like the "all gifts" feed
+               "attributes": [{"trait_type": "Model", "value": "Unicorns"}, {"trait_type": "Symbol", "value": "Flower"},
+                              {"trait_type": "Backdrop", "value": "Emerald"}]}
+    got = {x["trait"]: x["perc"] for x in _a.run(rarity.traits(ctx, listing))}
+    assert got == {"model": "1.5", "symbol": "1.1", "backdrop": "2"}
+
+
+def test_backdrop_colour_parsing():
+    from app.gift_assets import parse
+    sample = [{"name": "Navy Blue", "hex": {"centerColor": "#3B5C8C", "edgeColor": "#22355A"}},
+              {"name": "Black", "centerColor": 3552058, "edgeColor": 921359},
+              {"name": "Broken"}]
+    got = parse(sample)
+    assert got["Navy Blue"] == ["#3b5c8c", "#22355a"] and got["Black"] == ["#36333a", "#0e0f0f"] and "Broken" not in got
+    assert parse({"backdrops": sample}) == got
