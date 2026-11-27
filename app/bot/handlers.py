@@ -59,6 +59,12 @@ async def register_start(message: Message) -> tuple[User, bool]:
 @router.message(CommandStart())
 async def start(message: Message) -> None:
     user, is_new = await register_start(message)
+    arg = (message.text or "").partition(" ")[2].strip()
+    if arg.startswith("gift_") and 4 < len(arg) <= 40:        # someone sent this user a gift link
+        lang = await user_lang(user.id)
+        await message.answer(t(lang, "bot.gift_link"), reply_markup=markup([webapp_button(t(lang, "bot.gift_open"),
+                                                                                              gift=arg[5:])]))
+        return
     if is_new:
         await message.answer(t(await user_lang(user.id), "bot.choose_lang"), reply_markup=lang_keyboard())
         return

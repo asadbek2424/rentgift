@@ -33,7 +33,8 @@
     "market": "Market",
     "inventory": "Inventar",
     "activity": "Faollik",
-    "cart": "Savat"
+    "cart": "Savat",
+    "giftAccept": "Sovg'a"
   },
   "banner": {
     "title": "To'lov so'mda — karta orqali",
@@ -269,7 +270,17 @@
     "promo_expired": "Promo-kod muddati tugagan",
     "promo_used_up": "Promo-kod limiti tugagan",
     "promo_already_used": "Siz bu promo-koddan allaqachon foydalangansiz",
-    "favorites_full": "Sevimlilar ro'yxati to'la (100 ta)"
+    "favorites_full": "Sevimlilar ro'yxati to'la (100 ta)",
+    "gift_not_giftable": "Faqat gift ijarasini sovg'a qilish mumkin.",
+    "gift_already_gift": "Bu gift sizga sovg'a qilingan — uni qayta sovg'a qilib bo'lmaydi.",
+    "gift_expired": "Ijara muddati tugagan.",
+    "gift_busy": "Gift hozir Telegramga ulanmoqda. Birozdan keyin urinib ko'ring.",
+    "gift_not_pending": "Sovg'a allaqachon qabul qilingan.",
+    "gift_not_found": "Sovg'a havolasi topilmadi yoki eskirgan.",
+    "gift_taken": "Bu sovg'ani boshqa odam allaqachon qabul qilgan.",
+    "gift_own": "Bu o'zingiz yuborgan sovg'a. Havolani do'stingizga yuboring.",
+    "gift_not_ready": "Sovg'a hali tayyor emas — to'lov tasdiqlanishini kuting.",
+    "gift_gone": "Bu sovg'aning muddati tugagan yoki bekor qilingan."
   },
   "bot": {
     "welcome": "Assalomu alaykum, {name}! 👋\n\n<b>{app}</b> — Telegram giftlarini so'mda ijaraga oling. Gift Fragment orqali to'g'ridan-to'g'ri sizning Telegram profilingizga ulanadi.\n\nBoshlash uchun pastdagi tugmani bosing.",
@@ -283,7 +294,9 @@
     "receipt_received": "✅ Chek qabul qilindi (buyurtma #{id}). Admin tekshirgach xabar beramiz.",
     "receipt_no_order": "To'lov kutayotgan buyurtma topilmadi. Avval ilovada buyurtma bering.",
     "link_received": "🔗 Havola qabul qilindi, ulanmoqda…",
-    "link_no_order": "Fragment havolasini kutayotgan ijara topilmadi."
+    "link_no_order": "Fragment havolasini kutayotgan ijara topilmadi.",
+    "gift_link": "🎁 Sizga sovg'a yuborishdi! Uni ochib qabul qiling:",
+    "gift_open": "🎁 Sovg'ani ochish"
   },
   "notify": {
     "open": "Buyurtmani ochish",
@@ -307,7 +320,11 @@
     "open_app": "Ilovani ochish",
     "tg_reminder": "🎁 «{name}» ijarangiz tayyor, lekin hali Telegram profilingizga chiqarilmadi.\n\nIlovani oching → «Telegramni ulash» → Telegram'da «Tasdiqlash» ni bosing. Bu bir martalik qadam.",
     "tg_wrong_account": "⚠️ «{name}» uchun kirish boshqa akkauntdan ({account}) tasdiqlandi. Ilovani ochib, qaysi akkauntga qo'yishni tanlang.",
-    "tg_limit": "⏳ «{name}»: Fragment cheklovi (soatiga 3 marta). 20 daqiqadan keyin ilovada «Telegramni ulash» ni qayta bosing."
+    "tg_limit": "⏳ «{name}»: Fragment cheklovi (soatiga 3 marta). 20 daqiqadan keyin ilovada «Telegramni ulash» ni qayta bosing.",
+    "gift_ready": "🎁 <b>{name}</b> sovg'a sifatida tayyor! Ilovada buyurtmani oching va «Do'stga yuborish» tugmasi bilan havolani do'stingizga jo'nating.",
+    "gift_received": "🎁 Sizga <b>{name}</b> sovg'a qilindi! Ilovani oching va «Telegramni ulash» ni bosing — gift profilingizda ko'rinadi.\nIjara tugashi: {end}",
+    "gift_cancelled": "Sovg'a qilingan <b>{name}</b> bo'yicha muammo bo'ldi va buyurtma bekor qilindi. Pul sovg'a qilgan odamga qaytarildi.",
+    "gift_sold": "«{name}» ijara paytida egasi tomonidan sotildi, shuning uchun sovg'a erta tugadi. To'langan pul sovg'a qilgan odamga qaytarildi."
   },
   "admin": {
     "only": "Bu buyruq faqat admin uchun.",
@@ -574,7 +591,11 @@
     "ref_joined": "👥 {name} sizning havolangiz orqali qo'shildi. Uning har bir xaridi uchun bonus olasiz!",
     "purchase_done": "⭐ <b>{what}</b> @{to} ga yuborildi!",
     "purchase_refunded": "↩️ {what} @{to} ga yuborilmadi. <b>{amount}</b> balansingizga qaytarildi.",
-    "fav_cheaper": "❤️ Sevimli giftingiz arzonladi!\n\n<b>{name}</b> — kunlik narx {percent}% ga tushdi. Hozir ijaraga olish foydali."
+    "fav_cheaper": "❤️ Sevimli giftingiz arzonladi!\n\n<b>{name}</b> — kunlik narx {percent}% ga tushdi. Hozir ijaraga olish foydali.",
+    "gift_accepted": "🎉 {friend} siz yuborgan <b>{name}</b> sovg'asini qabul qildi!",
+    "gift_refunded": "💸 Sovg'a qilgan <b>{name}</b> bekor qilindi — <b>{amount}</b> balansingizga qaytarildi.",
+    "gift_refunded_card": "💸 Sovg'a qilgan <b>{name}</b> bekor qilindi — {amount} kartangizga qaytariladi.",
+    "gift_sold_refund": "💸 Sovg'a qilgan <b>{name}</b> ijara paytida egasi tomonidan sotildi. To'lagan pulingiz — <b>{amount}</b> — balansingizga qaytarildi."
   },
   "stars": {
     "seg_stars": "Stars",
@@ -735,5 +756,37 @@
     "rerent": "Yana ijaraga olish",
     "rerent_gone": "Bu gift hozir ijaraga berilmayapti",
     "just_now": "hozirgina"
+  },
+  "gift2": {
+    "toggle": "Do'stga sovg'a qilish",
+    "toggle_sub": "To'lovdan keyin do'stingizga havola yuborasiz — gift uning profilida chiqadi",
+    "note_ph": "Tabrik yozing (ixtiyoriy), masalan: Tug'ilgan kuning bilan! 🎉",
+    "rent_for": "Sovg'a qilish — {price}",
+    "after_pay": "Bu buyurtma sovg'a. To'lov tasdiqlangach, do'stingizga yuboriladigan havola shu yerda chiqadi.",
+    "make": "Do'stga sovg'a qilish",
+    "make_active": "Gift hozir sizning profilingizda. Do'stingiz qabul qilgach, u do'stingizning profiliga o'tadi va qolgan muddat unga tegishli bo'ladi.",
+    "make_go": "Sovg'a havolasini yaratish",
+    "save": "Saqlash",
+    "share_title": "Do'stga sovg'a",
+    "share_text": "Havolani do'stingizga yuboring. U ochib «Qabul qilish» ni bossa, gift uning Telegram profilida ko'rinadi.",
+    "send": "Do'stga yuborish",
+    "copy": "Havolani nusxalash",
+    "note_add": "Tabrik yozish",
+    "note_edit": "Tabrikni o'zgartirish",
+    "warn": "Havola bir martalik: kim birinchi qabul qilsa, sovg'a o'shaniki bo'ladi. Faqat do'stingizga yuboring.",
+    "cancel": "Sovg'ani bekor qilish — o'zimga qoldiraman",
+    "cancel_confirm": "Sovg'ani bekor qilasizmi? Havola ishlamay qoladi va gift sizda qoladi.",
+    "msg": "🎁 Senga sovg'a! {name} — {days} kunga. Havolani ochib qabul qil:",
+    "from": "{name} sizga sovg'a yubordi 🎁",
+    "ends": "Ijara tugashi: {date}",
+    "days": "{days} kunlik ijara",
+    "accept": "🎁 Sovg'ani qabul qilish",
+    "accept_hint": "Qabul qilgach «Telegramni ulash» ni bosing — gift profilingizda ko'rinadi. Ijara muddati tugagach gift egasiga qaytadi.",
+    "accepted": "Sovg'a sizniki! Endi uni Telegram profilingizga ulang.",
+    "received": "Bu gift sizga sovg'a qilingan 🎉",
+    "received_lbl": "Sovg'a",
+    "pending_lbl": "Sovg'a — yuborilmagan",
+    "sent_to": "Sovg'a qilindi → {name}",
+    "sent_note": "Do'stingiz qabul qildi ✅"
   }
 }

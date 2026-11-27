@@ -122,6 +122,12 @@ class Order(Base):
     tg_reminded: Mapped[bool] = mapped_column(Boolean, default=False)
     tg_allow_other: Mapped[bool] = mapped_column(Boolean, default=False)   # customer chose to show on another account
     tg_error: Mapped[str] = mapped_column(String(32), default="")          # last connect problem (shown to admins)
+    # "rent and send to a friend": a one-time link; whoever opens it first becomes the order's owner
+    gift_state: Mapped[str] = mapped_column(String(10), default="")       # "" | pending | accepted
+    gift_token: Mapped[str] = mapped_column(String(32), default="", index=True)
+    gift_from: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)   # the payer after hand-over
+    gift_note: Mapped[str] = mapped_column(String(200), default="")
+    gift_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     promo_code: Mapped[str] = mapped_column(String(24), default="", index=True)
     discount_uzs: Mapped[int] = mapped_column(BigInteger, default=0)
 

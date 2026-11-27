@@ -35,7 +35,12 @@ export const api = {
   gift: address => request('GET', `/api/gifts/${encodeURIComponent(address)}`),
   traits: address => request('GET', `/api/gifts/${encodeURIComponent(address)}/traits`),
   quote: (nft, days) => request('GET', `/api/quote?${new URLSearchParams({ nft, days })}`),
-  createOrder: (nft_address, days, promo = '') => request('POST', '/api/orders', { nft_address, days, promo }),
+  createOrder: (nft_address, days, promo = '', as_gift = false, gift_note = '') =>
+    request('POST', '/api/orders', { nft_address, days, promo, as_gift, gift_note }),
+  giftMake: (id, note = '') => request('POST', `/api/orders/${id}/gift`, { note }),
+  giftCancel: id => request('DELETE', `/api/orders/${id}/gift`),
+  giftPreview: token => request('GET', `/api/gift/${encodeURIComponent(token)}`),
+  giftAccept: token => request('POST', `/api/gift/${encodeURIComponent(token)}/accept`),
   promoCheck: (code, nft_address, days) => request('POST', '/api/promo/check', { code, nft_address, days }),
   notices: () => request('GET', '/api/notices'),
   noticesRead: () => request('POST', '/api/notices/read'),
