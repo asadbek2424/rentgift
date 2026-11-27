@@ -701,7 +701,7 @@ function breakdown(perDay, days, fee, total, add = 0, discount = 0) {
 
 // ------------------------------------------------------------------ animated gifts (Lottie from Fragment)
 // The static .webp is shown at once; the animation (model only, transparent) is drawn over the gift's backdrop
-// gradient and fades in when ready. If anything fails, the static picture simply stays.
+// gradient and fades in when ready. Fragment's animation is the full picture (backdrop + pattern + model). If anything fails, the static picture simply stays.
 let lottieLoading = null;
 function loadLottie() {
   if (window.lottie) return Promise.resolve(window.lottie);
@@ -742,10 +742,24 @@ async function animateHero(hero, image, colors) {
   let anim;
   try {
     anim = lib.loadAnimation({ container: stage, renderer: 'svg', loop: true, autoplay: true, animationData: data,
-      rendererSettings: { preserveAspectRatio: 'xMidYMid meet', progressiveLoad: true } });
+      rendererSettings: { preserveAspectRatio: 'xMidYMid slice' } });
   } catch { box.remove(); return; }
-  anim.addEventListener('DOMLoaded', () => requestAnimationFrame(() => box.classList.add('on')));
-  anim.addEventListener('data_failed', () => box.remove());
+  // With inline data lottie may finish loading inside loadAnimation(), before a 'DOMLoaded' listener exists —
+  // so reveal on whichever comes first: already loaded, DOMLoaded, first frame, or a short timeout.
+  let shown = false;
+  const show = () => {
+    if (shown || !box.isConnected) return;
+    shown = true;
+    box.classList.add('on');
+    hero.classList.add('animated');
+    anim.play();
+  };
+  if (anim.isLoaded) requestAnimationFrame(show);
+  anim.addEventListener('DOMLoaded', show);
+  anim.addEventListener('enterFrame', show);
+  setTimeout(show, 600);
+  anim.addEventListener('data_failed', () => { box.remove(); hero.classList.remove('animated'); });
+  hero.onclick = () => { if (shown) anim.goToAndPlay(0, true); };   // tap → play again from the start
   // stop the animation loop once the sheet is closed
   const watch = setInterval(() => { if (!box.isConnected) { clearInterval(watch); anim.destroy(); } }, 1500);
 }

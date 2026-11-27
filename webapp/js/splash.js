@@ -1,6 +1,8 @@
 // RentaGift intro (from rentagift_splash): the shield halves fly in and slam, the crown drops on top,
 // then the logo rises and shrinks, the name fades in and the chest rises from the bottom.
 // When it finishes it sets window.__splashDone and fires `splash:done`; app.js then fades the splash out.
+// Sound: splash_sfx.mp3 is one track timed to the same timeline. Browsers/WebViews may block sound until the
+// user taps — then the animation simply plays silently (it never waits for sound).
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var screen = $('sp2-screen'), stage = $('sp2-stage'), logo = $('sp2-logo'), glow = $('sp2-glow'), ring = $('sp2-ring');
@@ -13,6 +15,30 @@
   var MOVE = 1850, MOVE_DUR = 650;         // logo goes up + shrinks
   var FINAL_W = 56;                        // px: final logo width
   var EASE_IN = 'cubic-bezier(.55,0,1,.45)', EASE_OUT = 'cubic-bezier(.2,.8,.2,1)';
+
+  // ---- sound
+  var SFX = '/static/img/splash/splash_sfx.mp3?v=1';
+  var AC = window.AudioContext || window.webkitAudioContext;
+  var actx = null, sfx = null, src = null;
+  try { actx = AC ? new AC() : null; } catch (e) { actx = null; }
+  var loadSfx = actx && window.fetch ? fetch(SFX).then(function (r) { return r.arrayBuffer(); })
+    .then(function (b) { return new Promise(function (ok, no) { actx.decodeAudioData(b, ok, no); }); })
+    .then(function (buf) { sfx = buf; }).catch(function () {}) : Promise.resolve();
+  var unlock = function () { if (actx && actx.state !== 'running') actx.resume().catch(function () {}); };
+  ['pointerdown', 'touchstart', 'keydown'].forEach(function (e) { addEventListener(e, unlock, { once: true, passive: true }); });
+
+  function playSound() {
+    if (reduce) return;
+    if (actx && sfx && actx.state === 'running') {
+      try { src = actx.createBufferSource(); src.buffer = sfx; src.connect(actx.destination); src.start(actx.currentTime + 0.02); return; }
+      catch (e) { /* fall back to <audio> */ }
+    }
+    try {   // some WebViews allow <audio> autoplay while the AudioContext is still suspended
+      var el = new Audio(SFX); el.volume = 1;
+      var p = el.play(); if (p && p.catch) p.catch(function () {});
+    } catch (e) { /* no sound */ }
+  }
+  function stopSound() { try { if (src) src.stop(); } catch (e) {} }
 
   function A(el, kf, opt) { var o = { fill: 'both' }; for (var k in opt) o[k] = opt[k]; return el.animate(kf, o); }
 
@@ -32,6 +58,7 @@
   }
 
   function play() {
+    playSound();
     var sr = screen.getBoundingClientRect(), lr = logo.getBoundingClientRect();
     var top = 44 + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tg-top')) || 0);
     var scale = FINAL_W / lr.width;
@@ -78,8 +105,15 @@
     window.dispatchEvent(new Event('splash:done'));
   }
 
-  var start = function () { requestAnimationFrame(play); };
-  Promise.all([pL, pR, pC].map(function (i) { return i.decode ? i.decode().catch(function () {}) : null; }))
+  var started = false;
+  var start = function () { if (started) return; started = true; requestAnimationFrame(play); };
+  // resume() may stay pending without a tap, so it gets only a short moment
+  var resumed = actx && actx.state !== 'running'
+    ? Promise.race([actx.resume().catch(function () {}), new Promise(function (r) { setTimeout(r, 150); })]) : null;
+  var images = Promise.all([pL, pR, pC].map(function (i) { return i.decode ? i.decode().catch(function () {}) : null; }));
+  // wait for the sound at most 900 ms — the intro must never be held back by it
+  Promise.all([images, resumed, Promise.race([loadSfx, new Promise(function (r) { setTimeout(r, 900); })])])
     .then(function () { return document.fonts ? document.fonts.ready : null; }).then(start, start);
+  window.addEventListener('splash:done', function () { setTimeout(stopSound, 1500); });
   setTimeout(finish, 6000);   // safety: never hold the app longer than this
 })();

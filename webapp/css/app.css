@@ -1173,7 +1173,8 @@ body.scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overflow: 
 /* ---------------------------------------------------------------- animated gift (Lottie over the backdrop) */
 .gift-anim { position: absolute; inset: 0; opacity: 0; transition: opacity .45s ease; overflow: hidden; z-index: 1; }
 .gift-anim.on { opacity: 1; }
+.gift-hero.animated > img { visibility: hidden; transition: visibility 0s .45s; }
 .gift-anim .ga-blur { position: absolute; inset: -20%; background: center / cover no-repeat; filter: blur(26px) saturate(1.25); transform: scale(1.15); }
-.gift-anim .ga-stage { position: absolute; left: 17%; top: 9%; width: 66%; height: 66%; }
+.gift-anim .ga-stage { position: absolute; inset: 0; }
 .gift-anim .ga-stage svg { width: 100% !important; height: 100% !important; }
 .gift-hero .gd-title { z-index: 2; }
